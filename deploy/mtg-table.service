@@ -1,6 +1,6 @@
 [Unit]
 Description=MTG Table (Multiverse Hearth)
-Documentation=https://github.com/0xsks/mtg-table-dev
+Documentation=https://github.com/RadbroRed/mtg-table-dev
 After=network-online.target
 Wants=network-online.target
 
