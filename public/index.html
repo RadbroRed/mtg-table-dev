@@ -4,14 +4,81 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MTG Table ✨ Fantasy Playmat</title>
-  <link rel="stylesheet" href="/css/app.css?v=47" />
+  <link rel="stylesheet" href="/css/app.css?v=48" />
   <link rel="icon" href="/img/cardback.jpg" />
 </head>
 <body>
   <div id="app">
-    <div style="padding:32px;max-width:40em">
-      <p>Loading MTG Table… ✨</p>
-      <p><a href="/">Reload</a> · <a href="https://192.168.8.136:8888/">https://192.168.8.136:8888</a></p>
+    <div class="boot">
+      <div class="boot-stage" aria-hidden="true">
+        <span class="boot-spark boot-spark-1"></span>
+        <span class="boot-spark boot-spark-2"></span>
+        <span class="boot-spark boot-spark-3"></span>
+        <span class="boot-spark boot-spark-4"></span>
+        <svg class="boot-unicorn" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="uniRainbow" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#ff9ad5" />
+              <stop offset="25%" stop-color="#ffd36e" />
+              <stop offset="50%" stop-color="#8ef2c0" />
+              <stop offset="75%" stop-color="#8ec8ff" />
+              <stop offset="100%" stop-color="#c9a6ff" />
+            </linearGradient>
+            <linearGradient id="uniCoat" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#fdfbff" />
+              <stop offset="100%" stop-color="#d7d0ea" />
+            </linearGradient>
+            <radialGradient id="uniAura">
+              <stop offset="0%" stop-color="#f3dd9a" stop-opacity="0.5" />
+              <stop offset="100%" stop-color="#f3dd9a" stop-opacity="0" />
+            </radialGradient>
+          </defs>
+
+          <ellipse class="uni-aura" cx="120" cy="150" rx="118" ry="112" fill="url(#uniAura)" />
+
+          <g class="uni-bob">
+            <g class="uni-sway">
+              <ellipse class="uni-shadow" cx="120" cy="212" rx="62" ry="9" />
+
+              <!-- tail -->
+              <path class="uni-tail" d="M64 128 C34 118 18 140 30 162 C40 180 62 176 58 158" fill="none" stroke="url(#uniRainbow)" stroke-width="11" stroke-linecap="round" />
+
+              <!-- hind legs -->
+              <g class="uni-legs uni-legs-back">
+                <rect class="uni-leg" x="74" y="150" width="15" height="58" rx="7.5" fill="#cbc3e0" />
+                <rect class="uni-leg uni-leg-2" x="97" y="150" width="15" height="58" rx="7.5" fill="#cbc3e0" />
+              </g>
+
+              <!-- body -->
+              <ellipse cx="120" cy="140" rx="60" ry="39" fill="url(#uniCoat)" />
+
+              <!-- fore legs -->
+              <g class="uni-legs uni-legs-front">
+                <rect class="uni-leg uni-leg-3" x="140" y="150" width="15" height="58" rx="7.5" fill="#f2eefc" />
+                <rect class="uni-leg uni-leg-4" x="163" y="150" width="15" height="58" rx="7.5" fill="#f2eefc" />
+              </g>
+
+              <g class="uni-head-grp">
+                <!-- neck -->
+                <path d="M150 124 C160 104 166 88 172 70 L198 78 C192 98 186 116 180 132 Z" fill="url(#uniCoat)" />
+                <!-- mane -->
+                <path class="uni-mane" d="M170 68 C186 58 204 62 210 76 C196 74 184 80 176 92 C170 84 168 76 170 68 Z" fill="url(#uniRainbow)" />
+                <!-- head -->
+                <ellipse cx="192" cy="64" rx="27" ry="21" fill="url(#uniCoat)" transform="rotate(-12 192 64)" />
+                <!-- horn -->
+                <path class="uni-horn" d="M196 44 L204 16 L212 46 Z" fill="url(#uniRainbow)" />
+                <path d="M198 40 L206 40 M200 32 L209 32" stroke="#0b0d11" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round" />
+                <!-- muzzle + eye -->
+                <ellipse cx="212" cy="74" rx="9" ry="7" fill="#f6e7f2" />
+                <circle class="uni-eye" cx="199" cy="60" r="4" fill="#1a1524" />
+                <circle cx="200.4" cy="58.6" r="1.4" fill="#fff" />
+                <circle cx="216" cy="72" r="1.6" fill="#7a5f86" />
+              </g>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <p class="boot-title">Loading MTG Table… ✨</p>
     </div>
   </div>
   <div id="toast" class="toast" hidden></div>
@@ -21,7 +88,7 @@
   <script src="/vendor/ethers.umd.min.js"></script>
   <script src="/js/sounds.js?v=27"></script>
   <script src="/js/fx.js?v=27"></script>
-  <script src="/js/app.js?v=48"></script>
+  <script src="/js/app.js?v=49"></script>
   <script src="/js/rpg.js?v=32"></script>
   <script src="/js/profile.js?v=33"></script>
   <script src="/js/lobby.js?v=30"></script>

@@ -5407,3 +5407,186 @@ body:has(#profile-root) .topnav.hud.rpg-fantasy-hud {
 .topnav .player-name {
   display: none !important;
 }
+
+/* ---------------------------------------------------------------- loading */
+/* Shown by index.html until app.js replaces #app. The old markup offered a
+   "Reload" link and a hardcoded LAN address, which were wrong on any host
+   that is not that one machine. */
+
+.boot {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 42%, #171b26 0%, var(--bg) 62%);
+}
+
+.boot-stage {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: grid;
+  place-items: center;
+}
+
+.boot-unicorn {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* The dance: the whole rig bounces, the torso sways, the head keeps time, and
+   the four legs kick out of phase so it reads as dancing rather than
+   twitching. Each layer is a separate element so the timings layer. */
+.uni-bob {
+  animation: uniBob 0.62s ease-in-out infinite;
+  transform-origin: 120px 200px;
+}
+
+.uni-sway {
+  animation: uniSway 1.24s ease-in-out infinite;
+  transform-origin: 120px 200px;
+}
+
+.uni-head-grp {
+  animation: uniHead 0.62s ease-in-out infinite;
+  transform-origin: 178px 128px;
+}
+
+.uni-leg {
+  animation: uniKick 0.31s ease-in-out infinite;
+  transform-origin: 50% 0%;
+}
+.uni-leg-2 { animation-delay: -0.155s; }
+.uni-leg-3 { animation-delay: -0.235s; }
+.uni-leg-4 { animation-delay: -0.08s; }
+
+.uni-tail {
+  animation: uniTail 0.62s ease-in-out infinite;
+  transform-origin: 64px 132px;
+}
+
+.uni-mane {
+  animation: uniMane 0.78s ease-in-out infinite;
+  transform-origin: 172px 70px;
+}
+
+.uni-horn {
+  animation: uniHorn 0.62s ease-in-out infinite;
+  transform-origin: 204px 46px;
+}
+
+.uni-aura {
+  animation: uniAura 1.24s ease-in-out infinite;
+  transform-origin: 120px 150px;
+}
+
+.uni-shadow {
+  animation: uniShadow 0.62s ease-in-out infinite;
+  transform-origin: 120px 212px;
+}
+
+.uni-eye {
+  animation: uniBlink 3.1s steps(1, end) infinite;
+  transform-origin: 199px 60px;
+}
+
+/* Sparkles drifting up around the stage. */
+.boot-spark {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold-2);
+  box-shadow: 0 0 10px 2px rgba(243, 221, 154, 0.55);
+  opacity: 0;
+  animation: uniSpark 2.1s ease-in-out infinite;
+}
+.boot-spark-1 { left: 16%;  top: 62%; animation-delay: 0s; }
+.boot-spark-2 { left: 78%;  top: 70%; animation-delay: 0.52s; }
+.boot-spark-3 { left: 30%;  top: 78%; animation-delay: 1.04s; }
+.boot-spark-4 { left: 66%;  top: 55%; animation-delay: 1.56s; }
+
+.boot-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  animation: uniTitle 1.6s ease-in-out infinite;
+}
+
+@keyframes uniBob {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50%      { transform: translateY(-16px) scaleY(1.03); }
+}
+
+@keyframes uniSway {
+  0%, 100% { transform: rotate(-6deg); }
+  50%      { transform: rotate(6deg); }
+}
+
+@keyframes uniHead {
+  0%, 100% { transform: rotate(-9deg) translateY(0); }
+  50%      { transform: rotate(11deg) translateY(-4px); }
+}
+
+@keyframes uniKick {
+  0%, 100% { transform: rotate(-19deg); }
+  50%      { transform: rotate(19deg); }
+}
+
+@keyframes uniTail {
+  0%, 100% { transform: rotate(-14deg) scaleX(0.94); }
+  50%      { transform: rotate(16deg) scaleX(1.06); }
+}
+
+@keyframes uniMane {
+  0%, 100% { transform: rotate(-7deg) scale(0.97); }
+  50%      { transform: rotate(9deg) scale(1.05); }
+}
+
+@keyframes uniHorn {
+  0%, 100% { transform: rotate(-5deg); }
+  50%      { transform: rotate(6deg); }
+}
+
+@keyframes uniAura {
+  0%, 100% { transform: scale(0.9); opacity: 0.55; }
+  50%      { transform: scale(1.08); opacity: 0.95; }
+}
+
+@keyframes uniShadow {
+  0%, 100% { transform: scaleX(1);    opacity: 0.5; }
+  50%      { transform: scaleX(0.78);  opacity: 0.28; }
+}
+
+@keyframes uniBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%, 97%       { transform: scaleY(0.08); }
+}
+
+@keyframes uniSpark {
+  0%   { transform: translateY(14px) scale(0.4); opacity: 0; }
+  22%  { opacity: 0.95; }
+  100% { transform: translateY(-64px) scale(1.15); opacity: 0; }
+}
+
+@keyframes uniTitle {
+  0%, 100% { opacity: 0.72; }
+  50%      { opacity: 1; }
+}
+
+/* A dancing unicorn is the one thing that must not happen for someone who
+   asked their OS for less motion, so stop it and leave the label readable. */
+@media (prefers-reduced-motion: reduce) {
+  .uni-bob, .uni-sway, .uni-head-grp, .uni-leg, .uni-tail,
+  .uni-mane, .uni-horn, .uni-aura, .uni-shadow, .uni-eye,
+  .boot-spark, .boot-title {
+    animation: none !important;
+  }
+  .boot-spark { opacity: 0.4; }
+  .boot-title { opacity: 1; }
+}

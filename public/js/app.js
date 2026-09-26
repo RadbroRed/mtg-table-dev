@@ -2892,8 +2892,6 @@
     getCachedUser,
     setCachedUser,
     fetchMe,
-    login,
-    register,
     loginWithWallet,
     getPhantomProvider,
     connectPhantom,
