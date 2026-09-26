@@ -4,6 +4,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const http = require("http");
 const https = require("https");
 const { execFileSync } = require("child_process");
 const crypto = require("crypto");
@@ -396,7 +397,13 @@ function lanAddresses() {
   return out;
 }
 
+// The origin handed to clients in share links, and the one a wallet signs
+// against. On a LAN box that is a local interface; behind a proxy or in the
+// cloud there is no useful interface address, so PUBLIC_URL names the public
+// origin. It must be the https origin with no trailing slash.
 function preferLanUrl() {
+  const configured = (process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "");
+  if (configured) return configured;
   const addrs = lanAddresses();
   const eth = addrs.find((a) => a.iface.startsWith("en") || a.iface.startsWith("eth"));
   const pick = eth || addrs[0];
@@ -4669,7 +4676,19 @@ function ensureLanCert() {
 // interfaces, which browsers and wallets warn about. A deployment should
 // point TLS_CERT/TLS_KEY at a real certificate — on a tailnet,
 // `tailscale cert <host>.<tailnet>.ts.net` issues a publicly-trusted one.
+//
+// BEHIND_PROXY says the front end already terminates TLS and forwards plain
+// HTTP (Fly.io, a reverse proxy, a load balancer). Returning null makes the
+// listener speak http, so the app is not forced to hold a certificate it
+// cannot get a publicly-trusted one for.
 function loadTls() {
+  if (process.env.BEHIND_PROXY) {
+    if (process.env.TLS_CERT || process.env.TLS_KEY) {
+      throw new Error("BEHIND_PROXY is set, so TLS_CERT/TLS_KEY must not be");
+    }
+    console.log("BEHIND_PROXY is set: serving plain HTTP, TLS is terminated upstream");
+    return null;
+  }
   const cert = process.env.TLS_CERT;
   const key = process.env.TLS_KEY;
   if (cert && key) {
@@ -4685,7 +4704,8 @@ function loadTls() {
   return ensureLanCert();
 }
 
-const server = https.createServer(loadTls(), app);
+const tls = loadTls();
+const server = tls ? https.createServer(tls, app) : http.createServer(app);
 attachUpgrade(server);
 
 wss.on("connection", (ws) => {
@@ -4911,10 +4931,13 @@ function handleWs(ws, msg) {
 }
 
 server.listen(PORT, HOST, () => {
-  console.log(`MTG Table HTTPS on ${HOST}:${PORT}`);
-  console.log(`Local:  https://127.0.0.1:${PORT}`);
-  for (const a of lanAddresses()) console.log(`LAN:    https://${a.address}:${PORT}`);
-  console.log("Do not use Tailscale for this — share the LAN URL.");
-  console.log("The browser will warn about the certificate once. Proceed, then Phantom can connect.");
+  const scheme = tls ? "https" : "http";
+  console.log(`MTG Table ${scheme.toUpperCase()} on ${HOST}:${PORT}`);
+  console.log(`Local:  ${scheme}://127.0.0.1:${PORT}`);
+  for (const a of lanAddresses()) console.log(`LAN:    ${scheme}://${a.address}:${PORT}`);
+  if (tls) {
+    console.log("Do not use Tailscale for this — share the LAN URL.");
+    console.log("The browser will warn about the certificate once. Proceed, then Phantom can connect.");
+  }
   attachRpgWorld(server).catch((e) => console.error("RPGJS boot error:", e.message));
 });

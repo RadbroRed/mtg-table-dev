@@ -1,0 +1,42 @@
+.git
+.gitignore
+node_modules
+npm-debug.log*
+*.log
+
+# Local TLS material and scratch space
+certs
+scratch
+
+# Card art cache: 170MB+, regenerable from Scryfall on demand. It is a cache,
+# not state.
+data/images/
+
+# Live state. This belongs on the /data volume; baking a developer's copy into
+# the image would publish their accounts and sessions.
+data/users.json
+data/sessions.json
+data/tables.json
+data/friends.json
+data/avatars/
+data/.auth-secret
+
+# One-off scripts kept for reference, not part of the running service
+dump_*.js
+dump.html
+scratch.js
+patch_*.js
+wipe_web3.js
+# Dev screenshots at the repo root. Not a blanket *.png: the RPG world loads
+# real art from public/assets/{buildings,rooms,sprites}/, which must ship.
+# A leading slash anchors these to the root.
+/dao.png
+/guilds.png
+/tables_overlay.png
+/rpg2.png
+
+# Deploy tooling for the systemd path; Fly uses the Dockerfile instead.
+deploy/
+Dockerfile
+.dockerignore
+fly.toml

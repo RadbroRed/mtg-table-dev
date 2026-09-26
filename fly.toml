@@ -1,0 +1,62 @@
+# Fly.io config. The app holds WebSocket connections and keeps live game state
+# in process memory, so it must run as exactly one machine.
+#
+# deploy/README.md explains why this cannot be a serverless function: no
+# long-lived WebSocket, ephemeral filesystem, and multiple instances that
+# cannot see each other's memory.
+
+app = "mtg-table-dev"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # TLS is terminated by Fly's proxy; the app speaks plain HTTP. See the
+  # BEHIND_PROXY branch in server.js's loadTls().
+  BEHIND_PROXY = "1"
+  PORT = "8080"
+  # No useful LAN interface exists in a cloud machine, so share links come from
+  # this instead. Must be the public https origin, no trailing slash.
+  # Set per deploy once the hostname exists: flyctl secrets set PUBLIC_URL=...
+  DATA_DIR = "/data"
+  NODE_OPTIONS = "--max-old-space-size=1024"
+
+# One machine only. Two would disagree about live tables and auth nonces.
+[processes]
+  app = "node server.js"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  processes = ["app"]
+
+  # Force a single machine. Without this Fly may scale out and the in-memory
+  # state would fork.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  # The card catalog is parsed into memory at boot, so the default 256MB is
+  # not enough. 1GB leaves room for the ~70MB catalog plus live state.
+  [[services.resources]]
+    cpu_kind = "shared"
+    cpus = 1
+    memory_mb = 1024
+
+# One volume, mounted by the only machine. Size is fixed at create time and
+# cannot be changed without recreating the volume.
+[[mounts]]
+  source = "mtg_data"
+  destination = "/data"
+
+# `fly volumes create mtg_data --size 10 --region iad` must be run once before
+# the first deploy, or this file will not apply.
