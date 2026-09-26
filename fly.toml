@@ -7,7 +7,7 @@
 #
 # There are two apps, chosen by branch in .github/workflows/deploy.yml:
 #   main -> the-crypto-game  (stable)
-#   dev  -> mtg-table-dev    (dev, the original app)
+#   dev  -> the-crypto-game-dev (dev)
 #
 # The app name below is only the default for a local or manual `flyctl deploy`.
 # CI always passes `--app`, which overrides this line, so the same fly.toml and
@@ -15,7 +15,7 @@
 # each has its own volume, so the two share no players, accounts or sessions.
 # The volume is named mtg_data in both because volume names are scoped per app.
 
-app = "mtg-table-dev"
+app = "the-crypto-game-dev"
 primary_region = "iad"
 
 [build]

@@ -4,7 +4,7 @@ name: Deploy to Fly.io
 #
 # Two environments, chosen by branch:
 #   main -> the-crypto-game       (stable)
-#   dev  -> mtg-table-dev         (dev, the original app)
+#   dev  -> the-crypto-game-dev (dev)
 #
 # They are separate Fly apps with separate volumes, so dev deploys can never
 # touch stable players, accounts, tables or sessions. Promote by merging
@@ -44,11 +44,11 @@ jobs:
       FLY_APP_NAME: >-
         ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main')
             || (github.event_name == 'workflow_dispatch' && inputs.environment == 'stable'))
-            && 'the-crypto-game' || 'mtg-table-dev' }}
+            && 'the-crypto-game' || 'the-crypto-game-dev' }}
       FLY_HOST: >-
         ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main')
             || (github.event_name == 'workflow_dispatch' && inputs.environment == 'stable'))
-            && 'the-crypto-game.fly.dev' || 'mtg-table-dev.fly.dev' }}
+            && 'the-crypto-game.fly.dev' || 'the-crypto-game-dev.fly.dev' }}
 
     # One deploy at a time per app, so a dev deploy never queues behind
     # stable. Do not cancel in progress: each app is a single machine with a
