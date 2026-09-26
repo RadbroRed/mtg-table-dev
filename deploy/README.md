@@ -1,10 +1,32 @@
-# Deploying to a long-lived Node host
+# Deploying
 
 The app holds WebSocket connections and keeps live game state, so it needs a
 long-lived process and a durable disk. It does not run on a serverless
 platform like Vercel: those cannot hold a WebSocket open, they discard
 filesystem writes between invocations, and they run many instances that cannot
 see each other's memory.
+
+Two supported targets, both single-instance with a durable volume:
+
+| | systemd on a VPS | Fly.io |
+| --- | --- | --- |
+| Config | `deploy/mtg-table.service` | `fly.toml` + `Dockerfile` |
+| Ship with | `deploy/deploy.sh user@host` | `flyctl deploy` |
+| Code directory | `/opt/mtg-table` | `/app` in the image |
+| State | `/var/lib/mtg-table` | `/data` on a Fly volume |
+| TLS | in-process, from `TLS_CERT`/`TLS_KEY` | Fly's proxy, so `BEHIND_PROXY=1` |
+| RAM | whatever the VPS has | 1GB, see below |
+
+Both default to HTTPS. On a VPS the app holds the certificate itself; on Fly the
+proxy terminates TLS and the app serves plain HTTP, which is what `BEHIND_PROXY`
+selects. `PUBLIC_URL` overrides the origin used in share links and wallet
+sign-in, which matters whenever there is no local interface to point at.
+
+The 1GB on Fly is not padding: `data/cards.json` and `data/old-printings.json`
+are ~70MB of JSON parsed into memory at boot, and the process is OOM-killed at
+Fly's 256MB default before it logs anything.
+
+## systemd on a VPS
 
 This deploys it as a systemd service on a single host.
 
