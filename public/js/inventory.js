@@ -19,6 +19,7 @@
     connectWeb3,
     connectBurner,
     logout,
+    loginIcon,
   } = window.MTG;
 
   let activeTab = "decks"; // "decks" | "binder" | "wallet"
@@ -137,7 +138,7 @@
                   <button type="button" class="btn small ghost" id="inv-btn-switch-wallet">Switch</button>
                   <button type="button" class="btn small danger" id="inv-btn-disc-wallet">Disconnect</button>
                 ` : `
-                  <button type="button" class="btn small" id="inv-btn-connect-phantom">Phantom</button>
+                  <button type="button" class="btn small" id="inv-btn-connect-phantom">${loginIcon}Login</button>
                   <button type="button" class="btn small gold" id="inv-btn-connect-evm">MetaMask</button>
                   <button type="button" class="btn small" id="inv-btn-connect-burner">Instant key</button>
                   <div id="inv-wallet-notice" style="display:none"></div>
@@ -312,7 +313,7 @@
 
             <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
               <button type="button" class="btn small" id="inv-wallet-phantom-btn" style="background:linear-gradient(135deg, #7c3aed, #581c87); color:#fff; font-weight:bold; border:1px solid #c084fc;">
-                👻 Connect Phantom (Sepolia)
+                ${loginIcon}Login
               </button>
               <button type="button" class="btn gold small" id="inv-wallet-connect-btn">
                 ${hasWallet ? "🔀 Switch / Re-Authenticate MetaMask" : "🦊 Connect MetaMask (Sepolia)"}

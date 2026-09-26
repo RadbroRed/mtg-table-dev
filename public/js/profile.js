@@ -15,12 +15,11 @@
     setCachedUser,
     fetchMe,
     claimFaucet,
-    login,
-    register,
     loginWithWallet,
     logout,
     openAuthModal,
     openFriendsModal,
+    loginIcon,
     SKINS,
     getSkin,
     setSkin,
@@ -707,7 +706,7 @@
             ` : `
               <div style="display:flex;flex-direction:column;gap:10px">
                 <button type="button" class="btn gold large" style="width:100%" id="btn-portal-connect-metamask">🦊 Connect MetaMask (Sepolia)</button>
-                <button type="button" class="btn small" style="width:100%;background:linear-gradient(135deg, #7c3aed, #581c87);color:#fff;border:1px solid #c084fc;" id="btn-portal-connect-phantom">👻 Connect Phantom (Sepolia)</button>
+                <button type="button" class="btn small" style="width:100%;background:linear-gradient(135deg, #7c3aed, #581c87);color:#fff;border:1px solid #c084fc;" id="btn-portal-connect-phantom">${loginIcon}Login</button>
               </div>
             `}
           </div>

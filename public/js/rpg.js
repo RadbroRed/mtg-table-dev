@@ -2600,8 +2600,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
         <button type="button" class="dfk-nav-pill" id="btn-dfk-skin" title="Switch Multiverse Visual Theme">
           🎨 Theme
         </button>
-        <button type="button" class="dfk-nav-pill" id="btn-dfk-top-web3" title="${u?.walletAddress ? `Connected (${u.walletChain || 'ethereum'}): ${u.walletAddress}` : 'Connect Phantom on Ethereum Sepolia and sign a test message'}">
-          ${u?.walletAddress ? `👻 ${u.walletAddress.slice(0, 6)}…` : "👻 Phantom"}
+        <button type="button" class="dfk-nav-pill" id="btn-dfk-top-web3" title="${u?.walletAddress ? `Connected (${u.walletChain || 'ethereum'}): ${u.walletAddress}` : 'Log in with an Ethereum wallet on Sepolia and sign a test message'}">
+          ${u?.walletAddress ? `${window.MTG?.loginIcon || ""}${u.walletAddress.slice(0, 6)}…` : `${window.MTG?.loginIcon || ""}Login`}
         </button>
         <button type="button" class="dfk-nav-pill" id="btn-dfk-fs" title="Toggle Fullscreen">
           ⛶ Fullscreen

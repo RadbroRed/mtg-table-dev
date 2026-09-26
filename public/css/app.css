@@ -5590,3 +5590,13 @@ body:has(#profile-root) .topnav.hud.rpg-fantasy-hud {
   .boot-spark { opacity: 0.4; }
   .boot-title { opacity: 1; }
 }
+
+/* The log-in glyph. Sized in em so it tracks whatever button it lands in, and
+   nudged off the baseline so it optically centres against capitalised text. */
+.login-ico {
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.16em;
+  margin-right: 0.4em;
+  flex: none;
+}

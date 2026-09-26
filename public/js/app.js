@@ -356,6 +356,17 @@
     }
   }
 
+  // A small log-in glyph: a doorway with an arrow stepping into it. Drawn
+  // with currentColor so it picks up the gold of whatever button it sits in,
+  // and sized in em so it tracks the button's font. Exported because the
+  // wallet buttons live in inventory.js and profile.js.
+  const LOGIN_ICON =
+    '<svg class="login-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+    '<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M15.5 8.5 19 12l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M19 12H9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+    "</svg>";
+
   function getPhantomProvider() {
     if (typeof window !== "undefined") {
       const ethereum = window.phantom?.ethereum ||
@@ -2282,10 +2293,10 @@
                 </div>
 
                 <div class="card-panel web3-prov-card" style="text-align:center;padding:20px;cursor:pointer;border:1px solid #c084fc;background:rgba(0,0,0,0.3)" id="prov-phantom">
-                  <span style="font-size:44px">👻</span>
-                  <h4 style="margin:10px 0 4px 0">Phantom (Ethereum)</h4>
-                  <p class="faint" style="font-size:11px;margin:0">Connect with Phantom in Ethereum Sepolia mode</p>
-                  <button type="button" class="btn small" style="margin-top:14px;width:100%;background:linear-gradient(135deg, #7c3aed, #581c87);color:#fff;border:1px solid #c084fc;">Connect Phantom</button>
+                  <span style="display:inline-block;font-size:34px;color:#c084fc">${LOGIN_ICON}</span>
+                  <h4 style="margin:10px 0 4px 0">Login</h4>
+                  <p class="faint" style="font-size:11px;margin:0">Sign with an Ethereum wallet on Sepolia</p>
+                  <button type="button" class="btn small" style="margin-top:14px;width:100%;background:linear-gradient(135deg, #7c3aed, #581c87);color:#fff;border:1px solid #c084fc;">${LOGIN_ICON}Login</button>
                 </div>
               </div>
             `
@@ -2887,6 +2898,7 @@
     closeModal,
     connectWS,
     sparkle: spawnSparkles,
+    loginIcon: LOGIN_ICON,
     getToken,
     setToken,
     getCachedUser,
