@@ -826,49 +826,43 @@
       }
     }
 
-    const msg = [
-      "Multiverse Hearth — prove you own this wallet.",
-      addr,
-      "",
-      "Network: Ethereum Sepolia testnet (chain id 11155111).",
-      "This is a test signature. It does not send a transaction and it does not cost gas.",
-      "",
-      "URI: " + location.origin,
-      "Nonce: " + Date.now().toString(16),
-      "Issued At: " + new Date().toISOString(),
-    ].join("\n");
-    const msgHex = "0x" + Array.from(new TextEncoder().encode(msg)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    // 3. Ask the server for a single-use sign-in challenge, the same way
+    // connectEVM does. The message used to be built here with a client-side
+    // Date.now() nonce, which the server has no record of, so every attempt
+    // died on "Missing sign-in challenge" before signature verification. The
+    // message has to come from the server or a captured signature can be
+    // replayed.
+    let msg = "";
+    let nonce = "";
+    try {
+      const challenge = await api("/api/auth/challenge", {
+        method: "POST",
+        second,
+        body: { address: addr, chain: "ethereum" },
+      });
+      msg = challenge && challenge.message;
+      nonce = challenge && challenge.nonce;
+    } catch (challengeErr) {
+      toast(challengeErr?.message || "Could not reach the server for a sign-in challenge.");
+      return null;
+    }
+    if (!msg || !nonce) {
+      toast("Could not obtain a sign-in challenge from the server.");
+      return null;
+    }
 
     toast("Sign the test message in Phantom to prove ownership ✍️");
     setWeb3Status("👻 Sign");
     let sig = "";
     try {
-      sig = await withTimeout(
-        provider.request({ method: "personal_sign", params: [msgHex, addr] }),
-        90000,
-        "Phantom did not return a signature. Open Phantom and approve the sign request."
-      );
+      sig = await signEvmLogin(provider, addr, msg);
     } catch (err) {
       if (walletRejected(err)) {
         toast("Signature was rejected in Phantom.");
         return null;
       }
-      const timedOut = /did not return|timed out/i.test(err?.message || "");
-      if (timedOut) {
-        toast(err.message);
-        return null;
-      }
-      try {
-        sig = await withTimeout(
-          provider.request({ method: "personal_sign", params: [msg, addr] }),
-          30000,
-          "Phantom signature timed out"
-        );
-      } catch (err2) {
-        if (walletRejected(err2)) toast("Signature was rejected in Phantom.");
-        else toast(err2.message || err.message || "Phantom signature failed.");
-        return null;
-      }
+      toast(err?.message || "Phantom signature failed.");
+      return null;
     }
     if (!sig) {
       toast("Phantom did not return a signature.");
@@ -885,6 +879,7 @@
           chain: "ethereum",
           signature: sig,
           message: msg,
+          nonce,
           network: "sepolia",
           displayName: `Phantom ${addr.slice(0, 6)}…${addr.slice(-4)}`,
         },
@@ -915,11 +910,14 @@
     return connectPhantom(second, "ethereum");
   }
 
-  async function loginWithWallet(address, chain = "ethereum", signature = "", displayName = "", second = false, message = "", network = "sepolia") {
+  // Unused: nothing calls this, and connectPhantom is the Ethereum path. Kept
+  // because it is exported, but it now takes the nonce it needs. Without one
+  // the server answers "Missing sign-in challenge".
+  async function loginWithWallet(address, chain = "ethereum", signature = "", displayName = "", second = false, message = "", network = "sepolia", nonce = "") {
     const res = await api("/api/auth/wallet", {
       method: "POST",
       second,
-      body: { address, chain, signature, message, network, displayName },
+      body: { address, chain, signature, message, nonce, network, displayName },
     });
     if (res && res.token) {
       setToken(res.token, second);
