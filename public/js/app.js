@@ -672,7 +672,7 @@
       }
       try {
         toast("Prompting verification signature in Phantom… 👻");
-        const testMsg = `MTG Multiverse Hearth Solana Ping:\nAccount: ${addr}\nTimestamp: ${Date.now()}`;
+        const testMsg = `The Crypto Game Solana Ping:\nAccount: ${addr}\nTimestamp: ${Date.now()}`;
         const encoded = new TextEncoder().encode(testMsg);
         const sigResp = await sol.signMessage(encoded, "utf8");
         const sigBytes = sigResp.signature || sigResp;
@@ -694,7 +694,7 @@
     if (burner && addr.toLowerCase() === burner.address.toLowerCase()) {
       try {
         toast("Signing verification message with burner wallet… 🦊");
-        const testMsg = `MTG Multiverse Hearth Sepolia Ping:\nAccount: ${addr}\nNonce: ${Date.now()}`;
+        const testMsg = `The Crypto Game Sepolia Ping:\nAccount: ${addr}\nNonce: ${Date.now()}`;
         const sig = await burner.signMessage(testMsg);
         toast(`✨ Burner signature verified: ${sig.slice(0, 12)}…!`);
         return { hash: sig, chain: "ethereum" };
@@ -726,7 +726,7 @@
           return null;
         }
         toast("Signing Sepolia verification in wallet… ✍️");
-        const testMsg = `MTG Multiverse Hearth Sepolia Ping:\nAccount: ${addr}\nNonce: ${Date.now()}`;
+        const testMsg = `The Crypto Game Sepolia Ping:\nAccount: ${addr}\nNonce: ${Date.now()}`;
         const sig = await signEvmLogin(provider, addr, testMsg);
         toast(`✨ Verification signed in wallet!`);
         return { hash: sig, chain: "ethereum" };
@@ -1289,7 +1289,7 @@
         <!-- Brand / Multiverse Link -->
         <a class="nav-brand" href="#/" title="Return to Multiverse Sanctuary">
           <span class="nav-brand-icon">🧙</span>
-          <span class="nav-brand-title">Multiverse Hearth</span>
+          <span class="nav-brand-title">The Crypto Game</span>
         </a>
         <button type="button" class="btn small ghost auth-btn" id="auth-btn" title="Character Profile & Login">${authLabel}</button>
 

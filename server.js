@@ -268,9 +268,9 @@ function pruneChallenges() {
 function buildSignInMessage({ domain, origin, address, chain, nonce }) {
   const issuedAt = new Date().toISOString();
   if (chain === "solana") {
-    return `Sign in to MTG Multiverse Hearth:\nAddress: ${address}\nURI: ${origin}\nNonce: ${nonce}\nIssued At: ${issuedAt}`;
+    return `Sign in to The Crypto Game:\nAddress: ${address}\nURI: ${origin}\nNonce: ${nonce}\nIssued At: ${issuedAt}`;
   }
-  return `${domain} wants you to sign in with your Ethereum account:\n${address}\n\nSign in to Multiverse Hearth on Sepolia Testnet (Chain ID: 11155111).\n\nURI: ${origin}\nVersion: 1\nChain ID: 11155111\nNonce: ${nonce}\nIssued At: ${issuedAt}`;
+  return `${domain} wants you to sign in with your Ethereum account:\n${address}\n\nSign in to The Crypto Game on Sepolia Testnet (Chain ID: 11155111).\n\nURI: ${origin}\nVersion: 1\nChain ID: 11155111\nNonce: ${nonce}\nIssued At: ${issuedAt}`;
 }
 
 // Returns an error string, or null when the challenge is valid. Consumes it.
@@ -4125,7 +4125,7 @@ app.put("/api/dnd/maps/:id", (req, res) => {
 app.get("/api/info", (_req, res) => {
   const lan = lanAddresses();
   res.json({
-    name: "MTG Table",
+    name: "The Crypto Game",
     port: PORT,
     lan,
     url: preferLanUrl(),
@@ -4664,7 +4664,7 @@ function ensureLanCert() {
       "req", "-x509", "-newkey", "rsa:2048",
       "-keyout", keyPath, "-out", certPath,
       "-days", "825", "-nodes",
-      "-subj", "/CN=MTG Table LAN",
+      "-subj", "/CN=The Crypto Game LAN",
       "-addext", `subjectAltName=${san}`,
     ], { stdio: "pipe" });
     console.log(`Created LAN certificate for ${san}`);
@@ -4932,7 +4932,7 @@ function handleWs(ws, msg) {
 
 server.listen(PORT, HOST, () => {
   const scheme = tls ? "https" : "http";
-  console.log(`MTG Table ${scheme.toUpperCase()} on ${HOST}:${PORT}`);
+  console.log(`The Crypto Game ${scheme.toUpperCase()} on ${HOST}:${PORT}`);
   console.log(`Local:  ${scheme}://127.0.0.1:${PORT}`);
   for (const a of lanAddresses()) console.log(`LAN:    ${scheme}://${a.address}:${PORT}`);
   if (tls) {

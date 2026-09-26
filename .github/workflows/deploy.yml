@@ -2,31 +2,61 @@ name: Deploy to Fly.io
 
 # local -> git push -> GitHub Actions -> fly.dev
 #
+# Two environments, chosen by branch:
+#   main -> the-crypto-game       (stable)
+#   dev  -> mtg-table-dev         (dev, the original app)
+#
+# They are separate Fly apps with separate volumes, so dev deploys can never
+# touch stable players, accounts, tables or sessions. Promote by merging
+# dev -> main.
+#
 # The build runs on Fly's own builders (`--remote-only`), so this workflow
 # needs no Docker daemon, no buildx, and no qemu on the runner. The 90MB
 # image is assembled on Fly's side and only the finished layers come back.
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
-
-# One deploy at a time. Do not cancel in progress: the app is a single
-# machine with a volume attached, so killing a deploy halfway would leave the
-# machine updating while the next one starts.
-concurrency:
-  group: fly-deploy
-  cancel-in-progress: false
-
-env:
-  FLY_APP_NAME: mtg-table-dev
-  FLY_HOST: mtg-table-dev.fly.dev
+    inputs:
+      environment:
+        description: Which environment to deploy
+        type: choice
+        options: [stable, dev]
+        default: stable
 
 jobs:
   deploy:
     name: Build and deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    # On a push the branch decides. workflow_dispatch has no branch, so the
+    # chosen input decides. Each condition is fully parenthesised because && and
+    # || in GitHub expressions are left-associative, and an unparenthesised
+    # (a && b) || c && 'name' parses as (a && b) || (c && 'name'), which yields
+    # the bare boolean true instead of an app name.
+    env:
+      STABLE: >-
+        ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+            || (github.event_name == 'workflow_dispatch' && inputs.environment == 'stable'))
+            && 'true' || 'false' }}
+      FLY_APP_NAME: >-
+        ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+            || (github.event_name == 'workflow_dispatch' && inputs.environment == 'stable'))
+            && 'the-crypto-game' || 'mtg-table-dev' }}
+      FLY_HOST: >-
+        ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+            || (github.event_name == 'workflow_dispatch' && inputs.environment == 'stable'))
+            && 'the-crypto-game.fly.dev' || 'mtg-table-dev.fly.dev' }}
+
+    # One deploy at a time per app, so a dev deploy never queues behind
+    # stable. Do not cancel in progress: each app is a single machine with a
+    # volume attached, so killing a deploy halfway would leave the machine
+    # updating while the next one starts.
+    concurrency:
+      group: fly-deploy-${{ inputs.environment || (github.ref == 'refs/heads/main' && 'stable' || 'dev') }}
+      cancel-in-progress: false
 
     steps:
       - name: Check out
@@ -37,7 +67,10 @@ jobs:
 
       - name: Deploy
         id: deploy
-        run: flyctl deploy --remote-only --app "$FLY_APP_NAME"
+        run: |
+          echo "environment: $FLY_APP_NAME"
+          echo "hostname:    https://$FLY_HOST"
+          flyctl deploy --remote-only --app "$FLY_APP_NAME"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -54,7 +87,7 @@ jobs:
             echo "attempt $i: not up yet, waiting…"
             sleep 5
           done
-          echo "::error::app did not become healthy within 100s"
+          echo "::error::$FLY_APP_NAME did not become healthy within 100s"
           flyctl logs --app "$FLY_APP_NAME" | tail -50
           exit 1
 
