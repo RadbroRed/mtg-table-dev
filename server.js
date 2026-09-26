@@ -4746,11 +4746,18 @@ wss.on("connection", (ws) => {
 function handleWs(ws, msg) {
   const type = msg.t;
   if (type === "hello") {
+    // A second hello on an already-identified socket is a re-auth, not an
+    // arrival: the client sends one after a wallet login so ws.userId can bind
+    // to the account it just earned. Keep the seat and status the player
+    // already holds, otherwise logging in from the table drops them to the
+    // lobby. isGuest is derived from ws.userId, so without this re-hello a
+    // successful login still showed as Guest until a full page reload.
+    const isReAuth = Boolean(ws.playerId);
     ws.playerId = String(msg.playerId || uid(12));
     ws.token = msg.token || null;
     ws.userId = null;
-    ws.location = msg.location || "lobby";
-    ws.statusText = msg.statusText || "In Lobby";
+    ws.location = isReAuth ? ws.location : (msg.location || "lobby");
+    ws.statusText = isReAuth ? ws.statusText : (msg.statusText || "In Lobby");
     ws.lastSeen = now();
     let authUserObj = null;
     if (ws.token) {

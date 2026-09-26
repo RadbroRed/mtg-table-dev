@@ -76,6 +76,32 @@
       if (token) localStorage.setItem(authKey(second), token);
       else localStorage.removeItem(authKey(second));
     } catch {}
+    if (token) reauthSocket(second);
+  }
+
+  // The sockets bind identity once, from whatever token existed when they
+  // opened. A wallet login normally happens long after that, so the new token
+  // was stored and worked for every HTTP request, but the open sockets kept
+  // ws.userId null and the server kept reporting isGuest. Re-send hello so the
+  // live sockets pick up the account now. The server treats a repeat hello as a
+  // re-auth and preserves the seat, so this is safe to do mid-game.
+  function reauthSocket(second = false) {
+    const token = getToken(second);
+    if (!token) return;
+    const { id, name } = identity(second);
+    const hello = JSON.stringify({ t: "hello", playerId: id, name, token });
+    // Two sockets carry identity: presenceWs drives the online-players list
+    // and the guest/verified label on every popover, and window.MTG_WS is the
+    // table socket when a table is open. Whichever is open and left
+    // unauthenticated keeps showing guest for as long as it lives.
+    for (const ws of [presenceWs, window.MTG_WS]) {
+      if (!ws || ws.readyState !== 1) continue;
+      try {
+        ws.send(hello);
+      } catch (err) {
+        console.warn("socket re-auth failed", err);
+      }
+    }
   }
 
   function getCachedUser(second = false) {
