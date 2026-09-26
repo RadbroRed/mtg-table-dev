@@ -318,10 +318,16 @@
       return burner.signMessage(msg);
     }
     const msgHex = "0x" + Array.from(new TextEncoder().encode(msg)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    // Both entries are message-first, which is the order personal_sign expects
+    // and the only order Phantom accepts. The old list also tried
+    // [addr, msgHex], which puts an address where the message belongs and makes
+    // Phantom fail with "the address does not match the provided address for
+    // verification" instead of ever reaching the signature prompt. The plain
+    // string goes first because that is the EIP-1193 form and the hex form is
+    // the fallback.
     const attempts = [
-      [msgHex, addr],
-      [addr, msgHex],
       [msg, addr],
+      [msgHex, addr],
     ];
     let lastErr = null;
     for (const params of attempts) {
@@ -774,7 +780,7 @@
       return null;
     }
 
-    const addr = (accounts && accounts[0]) || provider.selectedAddress || null;
+    let addr = (accounts && accounts[0]) || provider.selectedAddress || null;
     if (!addr) {
       toast("Phantom did not return an Ethereum account.");
       return null;
@@ -824,6 +830,29 @@
           toast("Sepolia switch didn't finish. Phantom will still ask you to sign.");
         }
       }
+    }
+
+    // Phantom can change which EVM account it treats as active when the chain
+    // changes, then refuse to sign for anything else with "the address does not
+    // match the provided address for verification". Phantom's own session
+    // validation lists a chain switch as a reason a session goes stale. So
+    // re-read the account list after the switch and sign with the address
+    // Phantom reports now rather than the one captured before it. The server
+    // challenge below is requested for this address, so the two stay in sync.
+    try {
+      const freshAccounts = await withTimeout(
+        provider.request({ method: "eth_accounts" }),
+        4000,
+        "eth_accounts timed out"
+      );
+      const current = (freshAccounts && freshAccounts[0]) || provider.selectedAddress;
+      if (current && String(current).toLowerCase() !== String(addr).toLowerCase()) {
+        console.warn("Phantom changed its active account after the network switch:", addr, "->", current);
+        toast("Phantom switched accounts — signing with the active one.");
+        addr = current;
+      }
+    } catch (accountErr) {
+      console.warn("Could not re-read Phantom accounts", accountErr);
     }
 
     // 3. Ask the server for a single-use sign-in challenge, the same way
