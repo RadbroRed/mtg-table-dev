@@ -17,7 +17,7 @@ cleanup() {
 trap cleanup SIGTERM SIGINT
 
 # Run cloudflared in a background coprocess or pipe
-cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:${PORT}" 2>&1 | while IFS= read -r line; do
+cloudflared tunnel --no-autoupdate --no-tls-verify --url "https://127.0.0.1:${PORT}" 2>&1 | while IFS= read -r line; do
   echo "$line"
   if [[ "$line" =~ (https://[a-zA-Z0-9-]+\.trycloudflare\.com) ]]; then
     echo "${BASH_REMATCH[1]}" > "$URL_FILE"
