@@ -2520,7 +2520,6 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           </div>
         </div>
         <div class="dfk-card-actions" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;">
-          <button type="button" class="btn small danger" id="btn-dfk-quickplay" title="Quick Duel vs Sparky AI">⚔️ Quickplay</button>
           <button type="button" class="btn small ghost" id="btn-dfk-open-decks" title="Open Tolarian Deck & Card Inventory Overlay [I]">🎒 Inventory [I]</button>
           <button type="button" class="btn small ghost" id="btn-dfk-open-tables" title="Open Grand Arena Tables Overlay [T]">🏰 Tables</button>
         </div>
@@ -2536,19 +2535,6 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
 
       const deckBadge = playerCardEl.querySelector("#dfk-active-deck-badge");
       if (deckBadge) deckBadge.onclick = toggleInventoryModal;
-
-      const btnQp = playerCardEl.querySelector("#btn-dfk-quickplay");
-      if (btnQp) btnQp.onclick = () => {
-         sessionStorage.setItem("mtg-pending-create", JSON.stringify({
-           name: "⚔️ Quickplay vs AI",
-           format: "duel",
-           wager: 0,
-           vsBot: true,
-           deckId: sessionStorage.getItem("mtg-selected-deck") || localStorage.getItem("mtg-selected-deck") || null,
-         }));
-         if (typeof onNavigate === "function") onNavigate("/table/new");
-         else window.MTG && window.MTG.go && window.MTG.go("/table/new");
-      };
 
       const db = playerCardEl.querySelector("#btn-dfk-open-decks");
       if (db) db.onclick = toggleInventoryModal;
