@@ -1,0 +1,29 @@
+[Unit]
+Description=The Crypto Game - Stable (branch main)
+Documentation=https://github.com/RadbroRed/the-crypto-game
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+WorkingDirectory=/home/openclaw/the-crypto-game
+Environment=DATA_DIR=/home/openclaw/the-crypto-game-data/stable
+Environment=HOST=0.0.0.0
+Environment=PORT=8890
+Environment=BEHIND_PROXY=1
+Environment=NODE_ENV=production
+EnvironmentFile=-/home/openclaw/the-crypto-game-data/stable/.env
+
+ExecStart=/usr/bin/node /home/openclaw/the-crypto-game/server.js
+
+Restart=always
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=the-crypto-game-stable
+
+[Install]
+WantedBy=multi-user.target

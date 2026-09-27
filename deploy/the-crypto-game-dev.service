@@ -1,0 +1,29 @@
+[Unit]
+Description=The Crypto Game - Dev (branch dev)
+Documentation=https://github.com/RadbroRed/the-crypto-game
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+WorkingDirectory=/home/openclaw/the-crypto-game-dev
+Environment=DATA_DIR=/home/openclaw/the-crypto-game-data/dev
+Environment=HOST=0.0.0.0
+Environment=PORT=8891
+Environment=BEHIND_PROXY=1
+Environment=NODE_ENV=development
+EnvironmentFile=-/home/openclaw/the-crypto-game-data/dev/.env
+
+ExecStart=/usr/bin/node /home/openclaw/the-crypto-game-dev/server.js
+
+Restart=always
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=the-crypto-game-dev
+
+[Install]
+WantedBy=multi-user.target
