@@ -1108,9 +1108,6 @@
                 </div>
               </div>
             </div>
-            <div class="stakes-actions">
-              <button type="button" class="btn small gold" id="quick-faucet" title="Claim 500 Gold Hearth Refill">🪙 +500 Gold Refill</button>
-            </div>
           </div>
 
           <div class="wager-selector-row">
@@ -1270,17 +1267,6 @@
           sendAction("setWager", { wager: w });
         };
       });
-      const qf = $("#quick-faucet");
-      if (qf) {
-        qf.onclick = async () => {
-          try {
-            await window.MTG.claimFaucet(window.MTG_SECOND);
-            sendAction("claimFaucet");
-          } catch (err) {
-            toast(err.message || "Could not claim refill");
-          }
-        };
-      }
       const addBotBtn = $("#add-bot");
       if (addBotBtn) {
         addBotBtn.onclick = () => sendAction("addBot");

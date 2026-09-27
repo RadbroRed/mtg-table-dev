@@ -135,7 +135,11 @@
       const isRegistered = !!(user && user.username);
       const curSkinId = getSkin ? getSkin(second) : "arcane";
       const curSkin = (SKINS && SKINS.find((s) => s.id === curSkinId)) || { name: "Classic Arcane", icon: "✨" };
-      const balance = user && typeof user.balance === "number" ? user.balance : 1000;
+      const balance = user && typeof user.balance === "number" ? user.balance : 0;
+      const level = user && typeof user.level === "number" ? user.level : 1;
+      const xp = user && typeof user.xp === "number" ? user.xp : 0;
+      const xpNeeded = user && typeof user.xpNeeded === "number" ? user.xpNeeded : (level * 100);
+      const xpPercent = Math.min(100, Math.max(0, Math.round((xp / xpNeeded) * 100)));
 
       // Filter decks for this user or local identity: player saved decks appear FIRST
       const myDecks = (allDecks || []).filter((d) => {
@@ -261,7 +265,7 @@
                 🔑 Character Log In
               </button>
               <button type="button" class="portal-tab-btn ${activeTab === "register" ? "active" : ""}" data-tab="register">
-                ✨ Create New Character <span class="chip gold" style="font-size:10px;margin-left:4px">+1000 🪙</span>
+                ✨ Create New Character
               </button>
               <button type="button" class="portal-tab-btn ${activeTab === "wallet" ? "active" : ""}" data-tab="wallet">
                 👛 Web3 Wallet Signer
@@ -334,7 +338,7 @@
         // ==========================================
         // VIEW: LOGGED-IN PLANESWALKER CHARACTER PROFILE
         // ==========================================
-        const cur = user || { ...me, balance: 1000, wins: 0, losses: 0 };
+        const cur = user || { ...me, balance: 0, level: 1, xp: 0, wins: 0, losses: 0 };
         const totalGames = (cur.wins || 0) + (cur.losses || 0);
         const winrate = totalGames ? Math.round(((cur.wins || 0) / totalGames) * 100) : 0;
         const streak = (cur.stats && cur.stats.streak) || 0;
@@ -372,12 +376,8 @@
                 <div class="profile-name-row">
                   <h1 class="profile-char-name">${escapeHtml(cur.displayName || cur.username)}</h1>
                   <span class="chip ${isRegistered && !cur.isGuest ? "gold" : "ghost"}">${cur.isGuest || !isRegistered ? "🌱 Guest Planeswalker" : "✨ Registered Wizard"}</span>
+                  <span class="chip gold profile-level-badge">⭐ Level ${cur.level || 1}</span>
                   ${cur.isAdmin ? `<span class="chip gold">👑 Admin</span>` : ""}
-                  ${
-                    cur.walletAddress
-                      ? `<span class="chip gold" title="${escapeHtml(cur.walletAddress)}">🦊 Web3 On-Chain</span>`
-                      : ""
-                  }
                   <button type="button" class="btn small ghost" id="btn-edit-displayname" title="Change Wizard Name">✏️ Name</button>
                 </div>
 
@@ -394,15 +394,26 @@
                     : ""
                 }
 
-                <!-- Balance & Faucet Refill Bar -->
+                <!-- XP & Progression System Bar -->
+                <div class="profile-xp-section" style="margin: 10px 0; background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-weight:bold; color:var(--gold); font-size:13px;">⭐ Level ${cur.level || 1}</span>
+                      <span class="muted" style="font-size:11px;">Rank Progress</span>
+                    </div>
+                    <span style="color:#c084fc; font-size:12px; font-weight:bold;">${(cur.xp || 0).toLocaleString()} / ${xpNeeded.toLocaleString()} XP <small class="muted">(${xpPercent}%)</small></span>
+                  </div>
+                  <div class="xp-bar-track" style="width:100%; height:10px; background:rgba(255,255,255,0.08); border-radius:5px; overflow:hidden; border:1px solid rgba(255,255,255,0.08);">
+                    <div class="xp-bar-fill" style="width:${xpPercent}%; height:100%; background:linear-gradient(90deg, #7c3aed, #a855f7, #eab308); border-radius:5px; transition:width 0.4s ease;"></div>
+                  </div>
+                </div>
+
+                <!-- Treasury Balance Bar -->
                 <div class="profile-balance-strip">
                   <div class="profile-balance-stat">
                     <span class="balance-label">TREASURY BALANCE</span>
                     <span class="balance-gold">🪙 <b>${balance.toLocaleString()}</b> Gold</span>
                   </div>
-                  <button type="button" class="btn gold pulse" id="btn-char-faucet" title="Claim 500 Gold Hearth Refill">
-                    🎁 +500 Gold Refill
-                  </button>
                 </div>
               </div>
             </div>
@@ -410,7 +421,6 @@
             <!-- Command Center Fast Action Bar -->
             <div class="profile-command-bar">
               <a class="btn gold pulse" onclick="window.MTG.openTablesModal && window.MTG.openTablesModal(); return false;" href="#">🏰 Enter Tables & Host Match</a>
-              <button type="button" class="btn gold" id="btn-char-quick-sparky">⚔️ Duel Sparky AI (100 🪙 Wager)</button>
               <a class="btn ghost" onclick="window.MTG.go('/builder'); return false;" href="#">📖 Deck Builder</a>
               <button type="button" class="btn ghost" id="btn-char-friends">🤝 Friends Hub</button>
               <a class="btn ghost" onclick="window.MTG.go('/guilds'); return false;" href="#">⚔️ Guilds</a>
@@ -807,7 +817,7 @@
             });
             if (res && res.user) setCachedUser(res.user, second);
             else {
-              const cur = getCachedUser(second) || { ...me, balance: 1000, wins: 0, losses: 0 };
+              const cur = getCachedUser(second) || { ...me, balance: 0, level: 1, xp: 0, wins: 0, losses: 0 };
               cur.displayName = gn;
               cur.avatar = selectedPreset;
               setCachedUser(cur, second);
@@ -845,18 +855,6 @@
       // ==========================================
       // LOGGED-IN PROFILE EVENTS
       // ==========================================
-      const faucetBtn = $("#btn-char-faucet");
-      if (faucetBtn) {
-        faucetBtn.onclick = async () => {
-          try {
-            await claimFaucet(second);
-            spawnSparkles(window.innerWidth / 2, window.innerHeight / 2, "coin");
-            draw();
-          } catch (err) {
-            toast(err.message || "Could not claim refill");
-          }
-        };
-      }
 
       // Preset avatar clicking in customizer
       $$(".profile-preset-tile[data-preset]").forEach((btn) => {
@@ -976,20 +974,6 @@
           draw();
         };
       });
-
-      // Quick Duel vs Sparky
-      const sparkyBtn = $("#btn-char-quick-sparky");
-      if (sparkyBtn) {
-        sparkyBtn.onclick = () => {
-          sessionStorage.setItem("mtg-pending-create", JSON.stringify({
-            name: "⚔️ Duel vs Sparky (AI)",
-            format: "duel",
-            wager: 100,
-            vsBot: true,
-          }));
-          go("/table/new");
-        };
-      }
 
       // Friends button
       const friendsBtn = $("#btn-char-friends");

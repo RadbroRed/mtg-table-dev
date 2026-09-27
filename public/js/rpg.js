@@ -344,7 +344,7 @@
     }
     const avatarEmoji = portraitOf(user && user.avatar);
     const playerName = (user && (user.displayName || user.username)) || me?.name || "Planeswalker";
-    let goldBalance = (user && typeof user.balance === "number") ? user.balance : 1000;
+    let goldBalance = (user && typeof user.balance === "number") ? user.balance : 0;
     let chosenBotDiff = "normal";
 
     const hero = {
@@ -1984,7 +1984,6 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             <p class="muted" style="font-size:12px">Vote on proposals, manage the wager fee treasury, and claim staking rewards.</p>
             <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
               <button class="btn gold" id="room-btn-dao">🗳️ Open DAO Panel</button>
-              <button class="btn ghost" id="room-btn-faucet">💧 Claim Daily Gold</button>
             </div>
           </div>
           <div class="dfk-room-section" style="margin-top:14px">
@@ -2116,9 +2115,6 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       }
       if (roomId === "dao") {
         btn("room-btn-dao", () => { window.MTG && window.MTG.openDaoModal && window.MTG.openDaoModal(); });
-        btn("room-btn-faucet", async () => {
-          try { await window.MTG && window.MTG.claimFaucet && window.MTG.claimFaucet(); } catch {}
-        });
       }
       if (roomId === "dnd") {
         btn("room-btn-dnd", () => {
@@ -2484,6 +2480,10 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const u = window.MTG && window.MTG.getCachedUser && window.MTG.getCachedUser();
       const hasWallet = !!(u && u.walletAddress);
       const walletIcon = hasWallet ? (u.walletChain === "solana" ? "👻" : "🦊") : "👛";
+      const lvl = u ? (u.level || 1) : 1;
+      const xp = u ? (u.xp || 0) : 0;
+      const xpNeeded = u ? (u.xpNeeded || (lvl * 100)) : (lvl * 100);
+      const xpPct = Math.min(100, Math.max(0, Math.round((xp / xpNeeded) * 100)));
 
       playerCardEl.innerHTML = `
         <div class="dfk-card-inner">
@@ -2492,7 +2492,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               ${photoAvatar(hero.avatar)
                 ? `<img class="dfk-portrait-photo" src="${escapeHtml(hero.avatar)}" alt="">`
                 : `<span class="dfk-portrait-sprite">${hero.avatar}</span>`}
-              <span class="dfk-level-badge">Lv. 9</span>
+              <span class="dfk-level-badge">Lv. ${lvl}</span>
             </div>
             <div class="dfk-active-deck-badge" id="dfk-active-deck-badge" title="Click to open active deck in inventory builder" style="cursor: pointer; text-align: center; font-size: 9px; background: rgba(0,0,0,0.5); padding: 3px 6px; border-radius: 4px; border: 1px solid rgba(215,180,92,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 68px; color: #f3dd9a;">
               🎴 ${activeDeckName}
@@ -2512,7 +2512,10 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             </div>
             <div class="dfk-wealth-row">
               <div class="dfk-wealth-badge">🪙 <b id="dfk-card-gold">${goldBalance.toLocaleString()}</b> <small>Gold</small></div>
-              <div class="dfk-wealth-badge">💎 <b>25</b> <small>Lotus</small></div>
+              <div class="dfk-wealth-badge">⭐ <b>${xp}/${xpNeeded}</b> <small>XP</small></div>
+            </div>
+            <div class="dfk-xp-bar" style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;margin-top:3px;" title="${xp} / ${xpNeeded} XP (${xpPct}%)">
+              <div style="width:${xpPct}%;height:100%;background:linear-gradient(90deg,#8b5cf6,#eab308);border-radius:2px;"></div>
             </div>
           </div>
         </div>
@@ -3819,7 +3822,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       if (!u) {
         hero.name = "Planeswalker";
         hero.avatar = "🧙";
-        goldBalance = 1000;
+        goldBalance = 0;
         renderPlayerCard();
         renderTopNavHud();
         updatePlayerVitals();
