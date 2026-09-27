@@ -344,16 +344,20 @@
       return burner.signMessage(msg);
     }
     const msgHex = "0x" + Array.from(new TextEncoder().encode(msg)).map((b) => b.toString(16).padStart(2, "0")).join("");
-    // Both entries are message-first, which is the order personal_sign expects
-    // and the only order Phantom accepts. The old list also tried
-    // [addr, msgHex], which puts an address where the message belongs and makes
-    // Phantom fail with "the address does not match the provided address for
-    // verification" instead of ever reaching the signature prompt. The plain
-    // string goes first because that is the EIP-1193 form and the hex form is
-    // the fallback.
+    
+    // Check active address on provider
+    let targetAddr = addr;
+    if (provider?.selectedAddress && provider.selectedAddress.toLowerCase() === String(addr).toLowerCase()) {
+      targetAddr = provider.selectedAddress;
+    }
+    if (window.ethers?.getAddress) {
+      try { targetAddr = window.ethers.getAddress(targetAddr); } catch {}
+    }
+
+    // Standard EIP-1193 personal_sign requires hex-encoded message first [msgHex, address]
     const attempts = [
-      [msg, addr],
-      [msgHex, addr],
+      [msgHex, targetAddr],
+      [msg, targetAddr],
     ];
     let lastErr = null;
     for (const params of attempts) {
@@ -516,6 +520,23 @@
       } catch (netErr) {
         console.warn("Sepolia switch:", netErr);
         toast("Could not switch to Sepolia. Signing in with this account anyway.");
+      }
+
+      // Re-read active account after network switch to avoid stale address
+      try {
+        const freshAccounts = await withTimeout(
+          provider.request({ method: "eth_accounts" }),
+          4000,
+          "eth_accounts timed out"
+        );
+        const current = provider.selectedAddress || (freshAccounts && freshAccounts[0]);
+        if (current) addr = current;
+      } catch (accountErr) {
+        console.warn("Could not re-read accounts after network switch", accountErr);
+      }
+
+      if (window.ethers?.getAddress) {
+        try { addr = window.ethers.getAddress(addr); } catch {}
       }
 
       // 3. Ask the server for a single-use sign-in challenge. The message is
@@ -871,14 +892,20 @@
         4000,
         "eth_accounts timed out"
       );
-      const current = (freshAccounts && freshAccounts[0]) || provider.selectedAddress;
+      const current = provider.selectedAddress || (freshAccounts && freshAccounts[0]);
       if (current && String(current).toLowerCase() !== String(addr).toLowerCase()) {
         console.warn("Phantom changed its active account after the network switch:", addr, "->", current);
         toast("Phantom switched accounts — signing with the active one.");
         addr = current;
+      } else if (current) {
+        addr = current;
       }
     } catch (accountErr) {
       console.warn("Could not re-read Phantom accounts", accountErr);
+    }
+
+    if (window.ethers?.getAddress) {
+      try { addr = window.ethers.getAddress(addr); } catch {}
     }
 
     // 3. Ask the server for a single-use sign-in challenge, the same way
