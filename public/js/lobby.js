@@ -114,18 +114,10 @@
             <div class="vault-deck-row" style="margin-top:6px; font-size:12px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
               <span style="color:var(--gold); font-weight:600;">🎴 Equipped Deck:</span>
               <span class="chip gold" id="lobby-equipped-deck-chip" style="padding:2px 8px; font-size:11px; cursor:pointer;" title="Click to view/change equipped deck">
-                ${equippedDeck ? `<b>${escapeHtml(equippedDeck.name)}</b> · <span class="faint">${escapeHtml(equippedDeck.format || "duel")}${equippedDeck.counts ? ` (${equippedDeck.counts.main + equippedDeck.counts.command} cards)` : ""}</span>` : `<span class="muted">No deck equipped</span>`}
+                ${equippedDeck ? `<b>${escapeHtml(equippedDeck.name)}</b> · <span class="faint">${escapeHtml(equippedDeck.format || "duel")}${equippedDeck.counts ? ` (${equippedDeck.counts.main + equippedDeck.counts.command} cards)` : ""}</span>` : `<span class="muted">No deck equipped (Click to select)</span>`}
               </span>
-              <button type="button" class="btn small ghost" id="lobby-change-deck-btn" style="padding:1px 6px; font-size:11px;">Change Deck</button>
             </div>
           </div>
-        </div>
-        <div class="lobby-vault-right">
-          <button type="button" class="btn small ghost" id="lobby-skin-btn" title="Change Multiverse Theme">🎨 Skin: <span id="lobby-skin-label">${escapeHtml(curSkin.name)}</span></button>
-          ${user ? `<button type="button" class="btn small ghost" id="lobby-account-btn">🧙 Profile & Decks</button>` : `<button type="button" class="btn small ghost" id="lobby-account-btn">🔑 Log In / Register</button>`}
-          <a class="btn small ghost" onclick="window.MTG.go('/dao'); return false;" href="#">🏛️ DAO</a>
-          <a class="btn small ghost" href="#/dnd">🎲 D&D</a>
-          <button type="button" class="btn small ghost" id="lobby-leaderboard-btn">🏆 Leaderboard</button>
         </div>
       </div>
 
