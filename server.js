@@ -3268,17 +3268,22 @@ function authUser(req) {
 // the exact message returned here.
 app.post("/api/auth/challenge", (req, res) => {
   const { address, chain = "ethereum" } = req.body || {};
-  const addr = String(address || "").trim();
+  let addr = String(address || "").trim();
   if (!addr || addr.length < 8 || addr.length > 90) {
     return res.status(400).json({ error: "A valid wallet address is required" });
   }
   const ch = chain === "solana" ? "solana" : "ethereum";
+  if (ch === "ethereum" && ethers.isAddress(addr)) {
+    try {
+      addr = ethers.getAddress(addr);
+    } catch {}
+  }
 
   pruneChallenges();
   const nonce = crypto.randomBytes(16).toString("hex");
   const host = req.get("host") || "localhost";
   const origin = `${req.protocol}://${host}`;
-  const domain = host.split(":")[0] || "multiverse-hearth.eth";
+  const domain = host || "localhost";
   const message = buildSignInMessage({ domain, origin, address: addr, chain: ch, nonce });
 
   SIGNIN_CHALLENGES.set(nonce, {
