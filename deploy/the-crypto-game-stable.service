@@ -12,7 +12,8 @@ WorkingDirectory=/home/openclaw/the-crypto-game
 Environment=DATA_DIR=/home/openclaw/the-crypto-game-data/stable
 Environment=HOST=0.0.0.0
 Environment=PORT=8890
-Environment=BEHIND_PROXY=1
+Environment=TLS_CERT=/etc/ssl/the-crypto-game/fullchain.pem
+Environment=TLS_KEY=/etc/ssl/the-crypto-game/privkey.pem
 Environment=NODE_ENV=production
 EnvironmentFile=-/home/openclaw/the-crypto-game-data/stable/.env
 
