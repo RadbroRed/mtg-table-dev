@@ -1,0 +1,19 @@
+[Unit]
+Description=The Crypto Game Dev - Cloudflare Tunnel
+After=the-crypto-game-dev.service
+Wants=the-crypto-game-dev.service
+
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+ExecStart=/home/openclaw/the-crypto-game/scripts/run-tunnel.sh 8891 /home/openclaw/the-crypto-game-data/dev/tunnel_url.txt
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=the-crypto-game-tunnel-dev
+
+[Install]
+WantedBy=multi-user.target
