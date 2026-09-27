@@ -52,6 +52,9 @@ function loadUsers() {
   if (fs.existsSync(USERS_PATH)) {
     try {
       users = JSON.parse(fs.readFileSync(USERS_PATH, "utf8"));
+      for (const u of users) {
+        ensureUserVitals(u);
+      }
     } catch {
       users = [];
     }
@@ -308,13 +311,20 @@ function isUserAdmin(u) {
 
 function sanitizeUser(u) {
   if (!u) return null;
+  ensureUserVitals(u);
+  const lvl = typeof u.level === "number" && u.level >= 1 ? u.level : 1;
+  const xp = typeof u.xp === "number" && u.xp >= 0 ? u.xp : 0;
+  const xpNeeded = getXpNeeded(lvl);
   return {
     id: u.id,
     username: u.username,
     displayName: u.displayName || u.username,
     avatar: u.avatar || null,
     bio: u.bio || "",
-    balance: typeof u.balance === "number" ? u.balance : 1000,
+    balance: typeof u.balance === "number" ? u.balance : 0,
+    level: lvl,
+    xp,
+    xpNeeded,
     wins: u.wins || 0,
     losses: u.losses || 0,
     stats: {
@@ -335,6 +345,7 @@ function sanitizeUser(u) {
       questsDone: (u.stats && u.stats.questsDone) || 0,
       daoVotes: (u.stats && u.stats.daoVotes) || 0,
       friendsMade: (u.stats && u.stats.friendsMade) || 0,
+      totalXp: (u.stats && u.stats.totalXp) || 0,
     },
     collectionCount: Object.keys(u.collection || {}).length,
     achievements: u.achievements || {},
@@ -347,13 +358,16 @@ function sanitizeUser(u) {
   };
 }
 
-const guestUsers = new Map(); // playerId -> { id, username, displayName, balance, wins, losses, isGuest }
+const guestUsers = new Map(); // playerId -> { id, username, displayName, balance, level, xp, wins, losses, isGuest }
 
 function getPlayerRecord(seat) {
   if (!seat) return null;
   if (seat.userId) {
     const u = findUserById(seat.userId);
-    if (u) return u;
+    if (u) {
+      ensureUserVitals(u);
+      return u;
+    }
   }
   if (seat.playerId) {
     if (!guestUsers.has(seat.playerId)) {
@@ -361,13 +375,17 @@ function getPlayerRecord(seat) {
         id: seat.playerId,
         username: seat.name || "Guest",
         displayName: seat.name || "Guest",
-        balance: 1000,
+        balance: 0,
+        level: 1,
+        xp: 0,
         wins: 0,
         losses: 0,
         isGuest: true,
       });
     }
-    return guestUsers.get(seat.playerId);
+    const g = guestUsers.get(seat.playerId);
+    ensureUserVitals(g);
+    return g;
   }
   return null;
 }
@@ -1199,7 +1217,9 @@ function getOnlinePlayers() {
         username: u ? u.username : null,
         displayName: (u ? (u.displayName || u.username) : ws.playerName) || "Planeswalker",
         avatar: u ? u.avatar : null,
-        balance: u ? u.balance : 1000,
+        balance: u ? u.balance : 0,
+        level: u ? (u.level || 1) : 1,
+        xp: u ? (u.xp || 0) : 0,
         wins: u ? u.wins : 0,
         losses: u ? u.losses : 0,
         location: ws.location || (ws.tableCode ? "table" : "lobby"),
@@ -1275,7 +1295,9 @@ function getFriendsList(myId) {
       username: u ? u.username : (f.names && f.names[friendId]) || "Player",
       displayName: u ? (u.displayName || u.username) : (f.names && f.names[friendId]) || (online ? online.displayName : "Player"),
       avatar: u ? u.avatar : (online ? online.avatar : null),
-      balance: u ? u.balance : (online ? online.balance : 1000),
+      balance: u ? u.balance : (online ? online.balance : 0),
+      level: u ? (u.level || 1) : (online ? (online.level || 1) : 1),
+      xp: u ? (u.xp || 0) : (online ? (online.xp || 0) : 0),
       wins: u ? u.wins : (online ? online.wins : 0),
       losses: u ? u.losses : (online ? online.losses : 0),
       isOnline: !!online,
@@ -1792,7 +1814,9 @@ function viewFor(t, playerId) {
       isBot: !!s.isBot,
       ready: s.ready,
       wagerAgreed: !!s.wagerAgreed,
-      balance: rec ? (rec.balance || 0) : 1000,
+      balance: rec ? (rec.balance || 0) : 0,
+      level: rec ? (rec.level || 1) : 1,
+      xp: rec ? (rec.xp || 0) : 0,
       wins: rec ? (rec.wins || 0) : 0,
       losses: rec ? (rec.losses || 0) : 0,
       connected: s.connected,
@@ -2707,13 +2731,67 @@ function dayKey(ts = now()) {
   return `${d.getUTCFullYear()}-${mm}-${dd}`;
 }
 
+function getXpNeeded(level) {
+  const lvl = Math.max(1, Number(level) || 1);
+  return lvl * 100;
+}
+
 function ensureUserVitals(u) {
   if (!u) return;
-  if (typeof u.balance !== "number") u.balance = 1000;
+  if (typeof u.balance !== "number") u.balance = 0;
+  if (typeof u.level !== "number" || u.level < 1) u.level = 1;
+  if (typeof u.xp !== "number" || u.xp < 0) u.xp = 0;
   if (!u.stats) u.stats = {};
   if (!u.collection) u.collection = {}; // cardName(lower) -> count
   if (!u.achievements) u.achievements = {}; // achievementId -> unlockedAt ts
   if (!u.quests) u.quests = { day: null, list: [], claimedDay: null, streak: 0, lastClaim: null };
+}
+
+function awardXp(u, amount, reason) {
+  if (!u) return { leveledUp: false, oldLevel: 1, newLevel: 1, xp: 0, xpNeeded: 100, gained: 0 };
+  ensureUserVitals(u);
+  const gained = Math.max(0, Math.round(Number(amount) || 0));
+  if (gained <= 0) {
+    return {
+      leveledUp: false,
+      oldLevel: u.level,
+      newLevel: u.level,
+      xp: u.xp,
+      xpNeeded: getXpNeeded(u.level),
+      gained: 0,
+    };
+  }
+
+  const oldLevel = u.level;
+  let curLevel = oldLevel;
+  let curXp = u.xp + gained;
+  let leveledUp = false;
+
+  while (curXp >= getXpNeeded(curLevel)) {
+    curXp -= getXpNeeded(curLevel);
+    curLevel += 1;
+    leveledUp = true;
+  }
+
+  u.level = curLevel;
+  u.xp = curXp;
+  if (!u.stats) u.stats = {};
+  u.stats.totalXp = (u.stats.totalXp || 0) + gained;
+
+  if (leveledUp) {
+    const levelGold = curLevel * 25;
+    grantGold(u, levelGold, `Level ${curLevel} advancement bonus! 🌟`);
+  }
+
+  if (!u.isGuest) saveUsers();
+  return {
+    leveledUp,
+    oldLevel,
+    newLevel: curLevel,
+    xp: curXp,
+    xpNeeded: getXpNeeded(curLevel),
+    gained,
+  };
 }
 
 function collectionCount(u) {
@@ -2977,6 +3055,7 @@ function bumpQuest(u, questId, n = 1) {
   if (q.progress >= (def ? def.target : 1)) {
     q.done = true;
     grantGold(u, def ? def.reward : 50, "quest");
+    awardXp(u, 50, "Quest completed");
     u.stats.questsDone = (u.stats.questsDone || 0) + 1;
     return true; // completed this tick
   }
@@ -2992,6 +3071,7 @@ function claimDailyReward(u) {
   qd.streak = (qd.streak || 0) + 1;
   qd.lastClaim = dayKey();
   grantGold(u, reward, "daily");
+  awardXp(u, 50, "Daily reward streak");
   return reward;
 }
 
@@ -3034,6 +3114,7 @@ function evaluateAchievements(u) {
     if (!unlocked && a.check(u)) {
       u.achievements[a.id] = now();
       grantGold(u, a.reward, "achievement");
+      awardXp(u, 50, "Achievement unlocked: " + a.name);
       newly += 1;
     }
     out.push({
@@ -3209,11 +3290,17 @@ function trackMatchOutcome(t, winnerSeat, reason) {
     const isDraft = !!playDraftInfo(t, i);
     if (isDraft) rec.stats.draftsPlayed = (rec.stats.draftsPlayed || 0) + 1;
     if (iWon) {
+      const xpAmount = t.pot > 0 ? 100 : 75;
+      const xpRes = awardXp(rec, xpAmount, `Match victory at ${t.name || t.code}`);
+      if (xpRes.leveledUp) {
+        log(t, `🌟 ${s.name} reached Level ${xpRes.newLevel}! (+${xpRes.newLevel * 25} 🪙 Bonus) 🎉`, i);
+      }
       if (vsBot) {
         const diff = resolveBotDifficulty(t.botDifficulty);
         const reward = BOT_REWARDS[diff] || 100;
         rec.stats.botWins = (rec.stats.botWins || 0) + 1;
         grantGold(rec, reward, "bot_win");
+        awardXp(rec, 25, "Defeated AI bonus");
         botReward += reward;
         t.botReward = (t.botReward || 0) + reward;
         t.botWinnerName = s.name;
@@ -3221,8 +3308,14 @@ function trackMatchOutcome(t, winnerSeat, reason) {
       }
       if (isDraft) rec.stats.draftWins = (rec.stats.draftWins || 0) + 1;
       bumpQuest(rec, "win_game", 1);
-    } else if (vsBot) {
-      rec.stats.botLosses = (rec.stats.botLosses || 0) + 1;
+    } else {
+      const xpRes = awardXp(rec, 30, `Match participation at ${t.name || t.code}`);
+      if (xpRes.leveledUp) {
+        log(t, `🌟 ${s.name} reached Level ${xpRes.newLevel}! (+${xpRes.newLevel * 25} 🪙 Bonus) 🎉`, i);
+      }
+      if (vsBot) {
+        rec.stats.botLosses = (rec.stats.botLosses || 0) + 1;
+      }
     }
     bumpQuest(rec, "play_game", 1);
     if ((t.format || "").toLowerCase() === "commander") bumpQuest(rec, "play_commander", 1);
@@ -3429,7 +3522,9 @@ app.post(["/api/auth/wallet", "/api/auth/web3"], (req, res) => {
       displayName: String(displayName || defaultDn).trim().slice(0, 32),
       walletAddress: addr,
       walletChain: chain,
-      balance: 1000,
+      balance: 0,
+      level: 1,
+      xp: 0,
       wins: 0,
       losses: 0,
       badges: ["web3_verified", "remilia_citizen"],
@@ -3483,7 +3578,9 @@ app.post("/api/auth/faucet", (req, res) => {
           id: guestId,
           username: "guest_" + guestId.slice(0, 6),
           displayName: "Guest Planeswalker",
-          balance: 1000,
+          balance: 0,
+          level: 1,
+          xp: 0,
           wins: 0,
           losses: 0,
           isGuest: true,
@@ -3591,7 +3688,7 @@ app.post("/api/wallet/history", (req, res) => {
 app.get("/api/leaderboard", (_req, res) => {
   const list = users
     .map(sanitizeUser)
-    .sort((a, b) => (b.balance || 0) - (a.balance || 0) || (b.wins || 0) - (a.wins || 0))
+    .sort((a, b) => (b.level || 1) - (a.level || 1) || (b.xp || 0) - (a.xp || 0) || (b.balance || 0) - (a.balance || 0) || (b.wins || 0) - (a.wins || 0))
     .slice(0, 25);
   res.json(list);
 });
@@ -3609,7 +3706,9 @@ app.post("/api/auth/profile", (req, res) => {
           id: pid,
           username: "guest_" + pid.slice(0, 6),
           displayName: "Player",
-          balance: 1000,
+          balance: 0,
+          level: 1,
+          xp: 0,
           wins: 0,
           losses: 0,
           isGuest: true,

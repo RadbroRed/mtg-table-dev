@@ -88,7 +88,7 @@
       const walletAddr = user?.walletAddress || "";
       const walletChain = user?.walletChain || (walletAddr.startsWith("0x") ? "ethereum" : "solana");
       const walletIcon = hasWallet ? (walletChain === "solana" ? "👻" : "🦊") : "👛";
-      const goldBal = typeof user?.balance === "number" ? user.balance : 1000;
+      const goldBal = typeof user?.balance === "number" ? user.balance : 0;
       const chainLabel = walletChain === "solana" ? "Phantom Solana" : "EVM Connected";
       const netChip = walletChain === "solana" ? "● Solana Mainnet" : "● Sepolia Testnet";
 

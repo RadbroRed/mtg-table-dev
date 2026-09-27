@@ -190,7 +190,7 @@
       const user = window.MTG?.getCachedUser?.(window.MTG_SECOND);
       const name = (user && (user.displayName || user.username)) || 'Planeswalker';
       const avatar = user?.avatar || '🧙';
-      const gold = (user && typeof user.balance === 'number') ? user.balance : 1000;
+      const gold = (user && typeof user.balance === 'number') ? user.balance : 0;
       const did = sessionStorage.getItem('mtg-selected-deck') || '';
 
       socket.emit('auth', {

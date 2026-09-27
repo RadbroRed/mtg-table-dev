@@ -219,7 +219,7 @@
 
     async function handleBuyCard(cardObj, count = 1) {
       user = getCachedUser(second);
-      let curBalance = typeof user?.balance === "number" ? user.balance : 1000;
+      let curBalance = typeof user?.balance === "number" ? user.balance : 0;
       const unitPrice = cardObj.price || getCardPrice(cardObj.rarity);
       const totalPrice = unitPrice * count;
 
@@ -279,7 +279,7 @@
       const refund = Math.max(10, Math.floor((card.price || getCardPrice(card.rarity)) * 0.5));
 
       user = getCachedUser(second);
-      let curBalance = (typeof user?.balance === "number" ? user.balance : 1000) + refund;
+      let curBalance = (typeof user?.balance === "number" ? user.balance : 0) + refund;
 
       if (user) {
         user.balance = curBalance;
@@ -306,7 +306,7 @@
 
     async function handleBuyBooster(packName, cost = 150) {
       user = getCachedUser(second);
-      let curBalance = typeof user?.balance === "number" ? user.balance : 1000;
+      let curBalance = typeof user?.balance === "number" ? user.balance : 0;
 
       if (curBalance < cost) {
         toast(`⚠️ Need ${cost} 🪙 Gold to crack a booster pack!`);
@@ -356,7 +356,7 @@
 
     function render() {
       user = getCachedUser(second);
-      const goldBal = typeof user?.balance === "number" ? user.balance : 1000;
+      const goldBal = typeof user?.balance === "number" ? user.balance : 0;
       const collection = getUserCollection();
 
       const html = `
@@ -406,12 +406,6 @@
                   <div style="font-size:15px; font-weight:bold; color:#86efac;">${collection.length} <small style="font-size:11px; color:#9ca3af;">Cards</small></div>
                 </div>
               </div>
-            </div>
-
-            <div style="display:flex; gap:8px;">
-              <button type="button" class="btn small gold" id="mkt-faucet-btn" style="font-weight:bold;">
-                🪙 +500 Gold Refill
-              </button>
             </div>
           </div>
 
@@ -722,15 +716,6 @@
       // Close button
       const closeBtn = $("#mkt-close-btn");
       if (closeBtn) closeBtn.onclick = closeModal;
-
-      // Faucet button
-      const fBtn = $("#mkt-faucet-btn");
-      if (fBtn) {
-        fBtn.onclick = async () => {
-          if (claimFaucet) await claimFaucet(second);
-          render();
-        };
-      }
 
       // Tab switcher
       const tFeatured = $("#mkt-tab-featured");

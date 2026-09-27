@@ -63,7 +63,11 @@
       } catch {}
     }
 
-    let myBalance = user && typeof user.balance === "number" ? user.balance : 1000;
+    let myBalance = user && typeof user.balance === "number" ? user.balance : 0;
+    let myLevel = user && typeof user.level === "number" ? user.level : 1;
+    let myXp = user && typeof user.xp === "number" ? user.xp : 0;
+    let myXpNeeded = user && typeof user.xpNeeded === "number" ? user.xpNeeded : (myLevel * 100);
+    let myXpPct = Math.min(100, Math.max(0, Math.round((myXp / myXpNeeded) * 100)));
 
     $("#lobby-root").innerHTML = `
       <div class="hero" style="display:block; margin-bottom:20px;">
@@ -77,7 +81,6 @@
           </div>
           <div class="toolbar">
             <a class="btn gold" href="#/table/new">✨ Play Casual</a>
-            <button type="button" class="btn gold" id="hero-quick-bot">⚔️ Play Sparky AI (100 🪙 Wager)</button>
             <a class="btn" href="#/table/new?second=1" target="mtg-p2">🧙 Player 2 window</a>
           </div>
         </div>
@@ -90,16 +93,17 @@
           <div class="vault-meta">
             <div class="vault-badge-row">
               <span class="vault-badge ${user ? "registered" : "guest"}">${user ? "✨ Registered Wizard" : "🌱 Guest Planeswalker"}</span>
+              <span class="vault-badge gold" style="font-weight:bold;">⭐ Lv. ${myLevel}</span>
               <span class="vault-id">${escapeHtml(user ? user.displayName || user.username : me.name)}</span>
             </div>
             <div class="vault-balance-row">
               <span class="gold-amount"><b>${myBalance.toLocaleString()}</b> 🪙 Gold</span>
-              <span class="vault-record">${user ? `🏆 ${user.wins || 0}W · 💀 ${user.losses || 0}L` : "Log in to save balance & records permanently"}</span>
+              <span class="vault-xp" style="font-size:11px; color:#c084fc; margin-left:8px;" title="${myXp} / ${myXpNeeded} XP">⭐ ${myXp} / ${myXpNeeded} XP (${myXpPct}%)</span>
+              <span class="vault-record" style="margin-left:8px;">${user ? `🏆 ${user.wins || 0}W · 💀 ${user.losses || 0}L` : "Log in to save balance & records permanently"}</span>
             </div>
           </div>
         </div>
         <div class="lobby-vault-right">
-          <button type="button" class="btn small gold" id="lobby-faucet-btn" title="Claim 500 Gold Refill">🪙 +500 Gold Refill</button>
           <button type="button" class="btn small ghost" id="lobby-skin-btn" title="Change Multiverse Theme">🎨 Skin: <span id="lobby-skin-label">${escapeHtml(curSkin.name)}</span></button>
           ${user ? `<button type="button" class="btn small ghost" id="lobby-account-btn">🧙 Profile & Decks</button>` : `<button type="button" class="btn small ghost" id="lobby-account-btn">🔑 Log In / Register</button>`}
           <a class="btn small ghost" onclick="window.MTG.go('/dao'); return false;" href="#">🏛️ DAO</a>
@@ -248,38 +252,6 @@
         toast(info.url);
       }
     };
-
-    const hqb = $("#hero-quick-bot");
-    if (hqb) {
-      hqb.onclick = () => {
-        sessionStorage.setItem("mtg-pending-create", JSON.stringify({
-          name: "⚔️ Duel vs Sparky (AI)",
-          format: "duel",
-          wager: 100,
-          vsBot: true,
-        }));
-        go("/table/new");
-      };
-    }
-
-    const lfb = $("#lobby-faucet-btn");
-    if (lfb) {
-      lfb.onclick = async () => {
-        try {
-          await claimFaucet(second);
-          const u = getCachedUser(second);
-          myBalance = u ? u.balance : (myBalance + 500);
-          const el1 = $("#host-user-gold");
-          if (el1) el1.textContent = myBalance.toLocaleString();
-          const el2 = $(".gold-amount b");
-          if (el2) el2.textContent = myBalance.toLocaleString();
-          const navGold = $("#user-gold");
-          if (navGold) navGold.textContent = myBalance.toLocaleString();
-        } catch (err) {
-          toast(err.message || "Could not claim refill");
-        }
-      };
-    }
 
     const lab = $("#lobby-account-btn");
     if (lab) lab.onclick = () => go("/");

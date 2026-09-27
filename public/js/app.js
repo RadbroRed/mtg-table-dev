@@ -1030,7 +1030,7 @@
       second,
       body: { playerId: me.id },
     });
-    const cur = getCachedUser(second) || { ...me, balance: 1000 };
+    const cur = getCachedUser(second) || { ...me, balance: 0, level: 1, xp: 0 };
     cur.balance = res.balance;
     setCachedUser(cur, second);
     window.MTG_SFX && window.MTG_SFX.play("coin");
@@ -1310,7 +1310,11 @@
       ? (trackNames[bgm.track] || "🎵 Music")
       : "🔇 Music Off";
 
-    const balanceDisplay = (user && typeof user.balance === "number") ? user.balance : 1000;
+    const balanceDisplay = (user && typeof user.balance === "number") ? user.balance : 0;
+    const curLevel = user && typeof user.level === "number" ? user.level : 1;
+    const curXp = user && typeof user.xp === "number" ? user.xp : 0;
+    const curXpNeeded = user && typeof user.xpNeeded === "number" ? user.xpNeeded : (curLevel * 100);
+    const curXpPct = Math.min(100, Math.max(0, Math.round((curXp / curXpNeeded) * 100)));
     const isAdmin = user && (user.isAdmin || user.username === "amber");
 
     let avatarMarkup = "🧙";
@@ -1359,8 +1363,16 @@
         </nav>
         <div class="spacer"></div>
 
+        <!-- Level & XP Badge -->
+        <div class="rpg-level-badge" style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.3);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;" title="Planeswalker Level ${curLevel} · ${curXp} / ${curXpNeeded} XP (${curXpPct}%)">
+          <span style="font-weight:bold;color:var(--gold);">Lv. ${curLevel}</span>
+          <div style="width:36px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+            <div style="width:${curXpPct}%;height:100%;background:linear-gradient(90deg,#8b5cf6,#eab308);"></div>
+          </div>
+        </div>
+
         <!-- Gold Vault & Wager Hub Button -->
-        <button type="button" class="btn gold small vault-btn rpg-gold-badge" id="vault-btn" title="Gold Vault, Refill & Leaderboard">
+        <button type="button" class="btn gold small vault-btn rpg-gold-badge" id="vault-btn" title="Gold Vault & Leaderboard">
           🪙 <span id="user-gold">${balanceDisplay.toLocaleString()}</span> Gold
         </button>
 
@@ -1751,7 +1763,7 @@
       userId: myUser ? myUser.id : null,
       displayName: myUser ? (myUser.displayName || myUser.username) : me.name,
       avatar: myUser ? myUser.avatar : null,
-      balance: myUser ? myUser.balance : 1000,
+      balance: myUser ? myUser.balance : 0,
       status: "In Lobby",
     }];
 
@@ -1785,7 +1797,7 @@
       id: targetKey,
       displayName: "Planeswalker",
       status: "Online",
-      balance: 1000,
+      balance: 0,
       wins: 0,
       losses: 0,
     };
@@ -1799,7 +1811,7 @@
         <h2 style="margin:2px 0 4px 0">${escapeHtml(p.displayName || p.name || "Planeswalker")}</h2>
         <div class="faint" style="font-size:12px">${p.username ? `@${escapeHtml(p.username)} · ` : ""}${p.isGuest ? "Guest Planeswalker" : "Verified Wizard"}</div>
         <div style="display:flex;justify-content:center;gap:10px;margin:14px 0">
-          <span class="chip gold">🪙 ${(p.balance || 1000).toLocaleString()} Gold</span>
+          <span class="chip gold">🪙 ${(p.balance || 0).toLocaleString()} Gold</span>
           <span class="chip">🏆 ${p.wins || 0}W - ${p.losses || 0}L</span>
         </div>
         <div class="chip" style="margin-bottom:18px;display:inline-block">
@@ -1948,7 +1960,7 @@
                       <b>${escapeHtml(f.displayName || f.username)}</b>
                       <div class="faint" style="font-size:11px">
                         ${f.isOnline ? `<span style="color:var(--life)">🟢 ${escapeHtml(f.status)}</span>` : "⚪ Offline"}
-                        · 🪙 ${(f.balance || 1000).toLocaleString()} Gold
+                        · 🪙 ${(f.balance || 0).toLocaleString()} Gold
                       </div>
                     </div>
                   </div>
@@ -2285,9 +2297,9 @@
         content = `
           <div style="display:flex;justify-content:space-between;align-items:center">
             <h2>✨ Create Wizard Account</h2>
-            <span class="chip gold">[ STARTER +1000 🪙 ]</span>
+            <span class="chip gold">[ LEVEL 1 · 0 🪙 ]</span>
           </div>
-          <p class="muted">Join the table! Every new player receives <b>1,000 🪙 Starter Gold</b>.</p>
+          <p class="muted">Join the table! Start your journey across the multiverse at Level 1.</p>
           <div id="auth-err" class="auth-err-banner" style="display:none;margin-top:12px"></div>
           <form id="auth-form" class="auth-form" style="margin-top:16px">
             <div class="field">
@@ -2303,7 +2315,7 @@
               <input type="password" id="auth-pw" required minlength="4" autocomplete="new-password" placeholder="••••••••" />
             </div>
             <div class="row" style="margin-top:16px;gap:10px;flex-wrap:wrap">
-              <button type="submit" class="btn gold" id="btn-auth-submit">✨ Register (+1,000 🪙)</button>
+              <button type="submit" class="btn gold" id="btn-auth-submit">✨ Register Account</button>
               <button type="button" class="btn ghost" id="switch-login">Already have an account? Log In</button>
               <button type="button" class="btn ghost" id="switch-wallet">👛 Sign In With Wallet</button>
             </div>
@@ -2384,7 +2396,7 @@
           </div>
         `;
       } else if (tab === "profile") {
-        const cur = user || getCachedUser(second) || { balance: 1000, wins: 0, losses: 0, displayName: "Guest Wizard" };
+        const cur = user || getCachedUser(second) || { balance: 0, level: 1, xp: 0, wins: 0, losses: 0, displayName: "Guest Wizard" };
         const totalGames = (cur.wins || 0) + (cur.losses || 0);
         const winrate = totalGames ? Math.round(((cur.wins || 0) / totalGames) * 100) : 0;
         const streak = (cur.stats && cur.stats.streak) || 0;
@@ -2505,7 +2517,7 @@
           </div>
         `;
       } else if (tab === "vault") {
-        const cur = user || getCachedUser(second) || { balance: 1000, wins: 0, losses: 0, displayName: "Guest Wizard" };
+        const cur = user || getCachedUser(second) || { balance: 0, level: 1, xp: 0, wins: 0, losses: 0, displayName: "Guest Wizard" };
         const totalGames = (cur.wins || 0) + (cur.losses || 0);
         const winrate = totalGames ? Math.round(((cur.wins || 0) / totalGames) * 100) : 0;
         content = `
@@ -2523,11 +2535,6 @@
               <div class="stat-box"><b>${cur.losses || 0}</b> <span>Losses</span></div>
               <div class="stat-box"><b>${winrate}%</b> <span>Win Rate</span></div>
             </div>
-          </div>
-          <div class="card-panel" style="margin-top:16px">
-            <h3>🔥 Hearth Gift Refill</h3>
-            <p class="muted">Need more chips to place wagers? Claim a free +500 🪙 Gold gift from the tavern hearth!</p>
-            <button type="button" class="btn gold" id="btn-faucet" style="margin-top:8px">🎁 Claim +500 Gold Refill</button>
           </div>
           ${
             user && user.username
@@ -2824,20 +2831,6 @@
         form.onsubmit = async (e) => {
           e.preventDefault();
           toast("Password sign-in has been removed. Connect a wallet to sign in. 🔮");
-        };
-      }
-
-      const fBtn = $("#btn-faucet");
-      if (fBtn) {
-        fBtn.onclick = async () => {
-          try {
-            await claimFaucet(second);
-            tab = "vault";
-            draw();
-            render();
-          } catch (err) {
-            toast(err.message || "Could not claim refill");
-          }
         };
       }
 
