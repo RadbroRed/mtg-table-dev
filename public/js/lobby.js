@@ -69,19 +69,29 @@
     let myXpNeeded = user && typeof user.xpNeeded === "number" ? user.xpNeeded : (myLevel * 100);
     let myXpPct = Math.min(100, Math.max(0, Math.round((myXp / myXpNeeded) * 100)));
 
+    let equippedId = sessionStorage.getItem("mtg-selected-deck") || localStorage.getItem("mtg-selected-deck");
+    const myDecks = decks.filter((d) => {
+      if (user && d.userId === user.id) return true;
+      if (!user && (d.userId === me.id || (!d.userId && !d.starter))) return true;
+      return false;
+    });
+    const starterDecks = decks.filter((d) => d.starter);
+    let equippedDeck = decks.find((d) => d.id === equippedId) || myDecks[0] || starterDecks[0] || null;
+    if (equippedDeck && !equippedId) {
+      equippedId = equippedDeck.id;
+      try {
+        sessionStorage.setItem("mtg-selected-deck", equippedId);
+        localStorage.setItem("mtg-selected-deck", equippedId);
+      } catch {}
+    }
+
     $("#lobby-root").innerHTML = `
       <div class="hero" style="display:block; margin-bottom:20px;">
         <div>
           <h1 style="font-size:32px; margin-bottom:8px;">Gather 'Round · Cast · Play ✨</h1>
           <p style="margin-bottom:14px; max-width:65ch;">Cozy two-player Magic over the LAN. Stake Gold on matches, climb the multiverse leaderboard, or play casually by the hearth!</p>
-          <div class="lan-banner" style="margin-bottom:14px;">
-            <span>Other player opens</span>
-            <code id="lan-url">${escapeHtml(info.url)}</code>
-            <button class="btn small ghost" id="copy-url">📋 Copy</button>
-          </div>
           <div class="toolbar">
             <a class="btn gold" href="#/table/new">✨ Play Casual</a>
-            <a class="btn" href="#/table/new?second=1" target="mtg-p2">🧙 Player 2 window</a>
           </div>
         </div>
       </div>
@@ -100,6 +110,13 @@
               <span class="gold-amount"><b>${myBalance.toLocaleString()}</b> 🪙 Gold</span>
               <span class="vault-xp" style="font-size:11px; color:#c084fc; margin-left:8px;" title="${myXp} / ${myXpNeeded} XP">⭐ ${myXp} / ${myXpNeeded} XP (${myXpPct}%)</span>
               <span class="vault-record" style="margin-left:8px;">${user ? `🏆 ${user.wins || 0}W · 💀 ${user.losses || 0}L` : "Log in to save balance & records permanently"}</span>
+            </div>
+            <div class="vault-deck-row" style="margin-top:6px; font-size:12px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+              <span style="color:var(--gold); font-weight:600;">🎴 Equipped Deck:</span>
+              <span class="chip gold" id="lobby-equipped-deck-chip" style="padding:2px 8px; font-size:11px; cursor:pointer;" title="Click to view/change equipped deck">
+                ${equippedDeck ? `<b>${escapeHtml(equippedDeck.name)}</b> · <span class="faint">${escapeHtml(equippedDeck.format || "duel")}${equippedDeck.counts ? ` (${equippedDeck.counts.main + equippedDeck.counts.command} cards)` : ""}</span>` : `<span class="muted">No deck equipped</span>`}
+              </span>
+              <button type="button" class="btn small ghost" id="lobby-change-deck-btn" style="padding:1px 6px; font-size:11px;">Change Deck</button>
             </div>
           </div>
         </div>
@@ -156,27 +173,17 @@
           <button class="btn gold" id="create">✨ Create table</button>
         </div>
         <div class="card-panel">
-          <h2>🔮 Join by Code</h2>
-          <p class="muted">Every table has a 6-character invite code. Paste it here, or open the link the host sent.</p>
-          <div class="row">
-            <input class="grow" id="join-code" type="text" maxlength="8" placeholder="XK7M2P" style="text-transform:uppercase" />
-            <button class="btn gold" id="join">🌟 Join</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h2 style="margin:0">🏆 Multiverse Leaderboard</h2>
+            <button type="button" class="btn small ghost" id="lobby-open-lb">View all</button>
           </div>
-          <label class="muted" style="display:flex;gap:8px;margin-top:12px;align-items:center">
-            <input type="checkbox" id="second" /> I’m a second player on this computer
-          </label>
-
           <!-- Mini Multiverse Leaderboard -->
           <div class="lobby-mini-leaderboard">
-            <div class="mini-lb-head">
-              <span>🏆 Multiverse Leaderboard</span>
-              <button type="button" class="btn small ghost" id="lobby-open-lb">View all</button>
-            </div>
             <div class="mini-lb-list">
               ${
                 lb && lb.length
                   ? lb
-                      .slice(0, 4)
+                      .slice(0, 5)
                       .map(
                         (u, i) => `
                 <div class="mini-lb-item ${user && user.id === u.id ? "is-me" : ""}">
@@ -222,36 +229,46 @@
           </div>`
               )
               .join("")
-          : `<div class="empty">No open tables. Host one and send the LAN link.</div>`
+          : `<div class="empty">No open tables. Host one and invite players!</div>`
       }</div>
 
-      <div class="section-title">Decks on this machine</div>
-      <div class="deck-strip">
-        ${decks
-          .map(
-            (d) => `
-          <div class="deck-tile" data-deck="${d.id}">
-            <h3>${escapeHtml(d.name)}</h3>
-            <p>${escapeHtml(d.format)} · ${d.counts.main + d.counts.command} cards${d.starter ? " · starter" : ""}</p>
-          </div>`
-          )
-          .join("")}
-        <div class="deck-tile" id="new-deck">
-          <h3>+ New deck</h3>
-          <p>Search the full catalog, or paste a list.</p>
+      <!-- Player Code / Join by Code Section (Moved to Bottom) -->
+      <div class="card-panel" style="margin-top:24px;">
+        <h2>🔮 Join by Table / Player Code</h2>
+        <p class="muted">Every table has a 6-character invite code. Paste it here to join directly.</p>
+        <div class="row" style="max-width:440px; display:flex; gap:8px;">
+          <input class="grow" id="join-code" type="text" maxlength="8" placeholder="XK7M2P" style="text-transform:uppercase" />
+          <button class="btn gold" id="join">🌟 Join</button>
         </div>
+        <label class="muted" style="display:flex;gap:8px;margin-top:10px;align-items:center">
+          <input type="checkbox" id="second" /> I’m a second player on this computer
+        </label>
       </div>
+
       <p class="faint" style="margin-top:28px">Unofficial fan content. Card names and text are © Wizards of the Coast. Images via Scryfall. XMage client files live under <code>data/xmage</code> if you also want the Java rules engine.</p>
     `;
 
-    $("#copy-url").onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(info.url);
-        toast("LAN URL copied");
-      } catch {
-        toast(info.url);
-      }
+    const copyBtn = $("#copy-url");
+    if (copyBtn) {
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(info.url);
+          toast("LAN URL copied");
+        } catch {
+          toast(info.url);
+        }
+      };
+    }
+
+    const openDeckPicker = () => {
+      if (window.MTG.toggleInventoryModal) window.MTG.toggleInventoryModal();
+      else if (window.MTG.openInventoryModal) window.MTG.openInventoryModal();
+      else go("/inventory");
     };
+    const deckChip = $("#lobby-equipped-deck-chip");
+    if (deckChip) deckChip.onclick = openDeckPicker;
+    const changeDeckBtn = $("#lobby-change-deck-btn");
+    if (changeDeckBtn) changeDeckBtn.onclick = openDeckPicker;
 
     const lab = $("#lobby-account-btn");
     if (lab) lab.onclick = () => go("/");
@@ -367,7 +384,8 @@
     $$("[data-deck]").forEach((el) => {
       el.onclick = () => go(`/builder/${el.dataset.deck}`);
     });
-    $("#new-deck").onclick = () => go("/builder");
+    const newDeckBtn = $("#new-deck");
+    if (newDeckBtn) newDeckBtn.onclick = () => go("/builder");
   };
 
   window.MTG_VIEWS = window.MTG_VIEWS || {};
