@@ -2554,12 +2554,12 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       if (isChatCollapsed) {
         ffxiChatEl.className = "ffxi-window ffxi-overworld-chat collapsed";
         const lastMsg = chatLog[chatLog.length - 1];
-        const previewTxt = lastMsg ? `${lastMsg.sender ? `<${lastMsg.sender}> ` : ''}${lastMsg.text}` : "FFXI Log Ready.";
+        const previewTxt = lastMsg ? `${lastMsg.sender ? `<${lastMsg.sender}> ` : ''}${lastMsg.text}` : "Chat Log Ready.";
         ffxiChatEl.innerHTML = `
-          <div class="ffxi-collapsed-bar" id="ffxi-toggle-expand" title="Click to open FFXI Chat & Log Window">
-            <span class="ffxi-title">💬 FFXI Log</span>
+          <div class="ffxi-collapsed-bar" id="ffxi-toggle-expand" title="Click to open Chat & Log Window">
+            <span class="ffxi-title">💬 Chat & Log</span>
             <span class="ffxi-preview-msg">${escapeHtml(previewTxt)}</span>
-            <button type="button" class="ffxi-expand-btn" aria-label="Expand FFXI Log">▲</button>
+            <button type="button" class="ffxi-expand-btn" aria-label="Expand Chat Log">▲</button>
           </div>
         `;
         const bar = ffxiChatEl.querySelector("#ffxi-toggle-expand");
@@ -2570,7 +2570,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       ffxiChatEl.className = "ffxi-window ffxi-overworld-chat";
       ffxiChatEl.innerHTML = `
         <div class="ffxi-header">
-          <span class="ffxi-title">💬 <b>FFXI LOG & CHAT</b></span>
+          <span class="ffxi-title">💬 <b>CHAT & LOG</b></span>
           <div class="ffxi-tabs">
             <button type="button" class="ffxi-tab ${activeChatTab === 'all' ? 'active' : ''}" data-ctab="all">All</button>
             <button type="button" class="ffxi-tab ${activeChatTab === 'chat' ? 'active' : ''}" data-ctab="chat">Chat</button>
@@ -2635,7 +2635,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             return;
           }
           if (text === "/help") {
-            addLog("system", "FFXI Chat: type message to broadcast to nearby adventurers. Commands: /clear, /help.");
+            addLog("system", "Chat: type message to broadcast to nearby adventurers. Commands: /clear, /help.");
             return;
           }
 
@@ -3744,7 +3744,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
     renderTopNavHud();
     renderHotbar();
     renderChatWindow();
-    addLog("system", "Welcome to The Crypto Game. FFXI Log & Chat online. [Enter] to chat.");
+    addLog("system", "Welcome to The Crypto Game. Chat & Log online. [Enter] to chat.");
     animId = requestAnimationFrame(loop);
 
     return {
