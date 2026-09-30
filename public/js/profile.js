@@ -84,8 +84,15 @@
     };
     const openDrawer = () => {
       const drawer = document.getElementById("dfk-sheet-drawer");
-      if (drawer) drawer.hidden = false;
+      if (drawer) {
+        if (window.MTG?.bringToFront) window.MTG.bringToFront(drawer);
+        drawer.hidden = false;
+      }
     };
+    const initDrawer = document.getElementById("dfk-sheet-drawer");
+    if (initDrawer && !initDrawer.hidden && window.MTG?.bringToFront) {
+      window.MTG.bringToFront(initDrawer);
+    }
     const closeBtn = document.getElementById("dfk-sheet-close-btn");
     if (closeBtn) closeBtn.onclick = closeDrawer;
     const backdrop = document.getElementById("dfk-sheet-backdrop");
@@ -96,7 +103,7 @@
 
     // Data fetching
     const [info, allDecks, openTables, lbData] = await Promise.all([
-      getInfo().catch(() => ({ url: "http://127.0.0.1:8877" })),
+      getInfo().catch(() => ({ url: location.origin })),
       api("/api/decks").catch(() => []),
       api("/api/tables").catch(() => []),
       api("/api/leaderboard").catch(() => []),
@@ -147,9 +154,9 @@
         if (!user && (d.userId === me.id || (!d.userId && !d.starter))) return true;
         return false;
       });
-      const starterDecks = (allDecks || []).filter((d) => d.starter);
+      // Default decks are not listed here — they live in the deck builder,
+      // where forking one is what adds it to your own collection.
       const otherDecks = (allDecks || []).filter((d) => !myDecks.some((m) => m.id === d.id) && !d.starter);
-      const displayDecks = [...myDecks, ...starterDecks, ...otherDecks];
 
       function renderDecksArmory() {
         return `
@@ -160,7 +167,7 @@
                 <h2 style="margin:0;display:flex;align-items:center;gap:8px">
                   <span>🎴</span> Saved Decks Armory
                   <span class="chip gold" style="font-size:11px">${myDecks.length} Saved</span>
-                  <span class="chip" style="font-size:11px">${displayDecks.length} Total</span>
+                  ${otherDecks.length ? `<span class="chip" style="font-size:11px">${otherDecks.length} From Other Players</span>` : ""}
                 </h2>
                 <p class="muted" style="margin:2px 0 0 0">Your personal spellbooks appear first. Take them into live matches or tweak them in the builder:</p>
               </div>
@@ -184,7 +191,7 @@
                             <button type="button" class="btn small gold btn-char-play-deck" data-did="${d.id}" title="Play at tables with this deck">⚔️ Play</button>
                             <a class="btn small ghost" onclick="window.MTG.go('/builder/${d.id}'); return false;" href="#" title="Edit in deck builder">✏️ Edit</a>
                             <button type="button" class="btn small ghost btn-char-copy-deck" data-did="${d.id}" title="Duplicate deck">📋 Copy</button>
-                            ${!d.starter ? `<button type="button" class="btn small danger btn-char-del-deck" data-did="${d.id}" title="Delete deck">🗑️</button>` : ""}
+                            <button type="button" class="btn small danger btn-char-del-deck" data-did="${d.id}" title="Delete deck">🗑️</button>
                           </div>
                         </div>
                       </div>`;
@@ -199,15 +206,17 @@
               }
             </div>
             
-            <h3 style="margin:24px 0 12px 0; font-size:14px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">⭐ Starter & Guest Decks</h3>
+            ${
+              otherDecks.length
+                ? `
+            <h3 style="margin:24px 0 12px 0; font-size:14px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">🗂️ Decks From Other Planeswalkers</h3>
             <div class="profile-deck-grid">
               ${
-                starterDecks.concat(otherDecks).map((d) => {
+                otherDecks.map((d) => {
                       return `
                       <div class="profile-deck-card card-panel">
                         <div class="profile-deck-cover" style="background-image:url('${d.cover || "/img/cardback.jpg"}')">
                           <span class="deck-format-badge">${escapeHtml(d.format)}</span>
-                          ${d.starter ? `<span class="deck-starter-pill">⭐ Starter</span>` : ""}
                         </div>
                         <div class="profile-deck-body">
                           <b class="profile-deck-title">${escapeHtml(d.name)}</b>
@@ -221,7 +230,9 @@
                       </div>`;
                     }).join("")
               }
-            </div>
+            </div>`
+                : ""
+            }
           </div>
         `;
       }
@@ -280,9 +291,6 @@
             </div>
           </div>
 
-          <!-- PLAYERS SAVED DECKS APPEAR FIRST -->
-          ${renderDecksArmory()}
-
           <!-- Bottom Showcase: LAN Tables & Leaderboard Preview -->
           <div class="grid-2" style="margin-top:24px">
             <!-- Active LAN Tables Preview -->
@@ -333,6 +341,24 @@
               </div>
             </div>
           </div>
+
+          <!-- Saved Decks Armory -->
+          ${renderDecksArmory()}
+
+          <!-- Multiverse Visual Themes Chooser -->
+          <div class="card-panel" style="margin-top:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h3 style="margin:0;display:flex;align-items:center;gap:8px">🎨 Multiverse Visual Themes</h3>
+              <span class="faint" style="font-size:12px">Select Interface Skin</span>
+            </div>
+            <div class="skin-chips-list" style="display:flex;flex-wrap:wrap;gap:8px">
+              ${(SKINS || []).map((s) => `
+                <button type="button" class="btn small ${s.id === curSkinId ? "gold active-skin-chip" : "ghost"} btn-skin-pick" data-skin="${s.id}">
+                  <span>${s.icon}</span> <span>${escapeHtml(s.name)}</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
         `;
       } else {
         // ==========================================
@@ -369,30 +395,35 @@
                   ${avatarEl}
                   <div class="profile-avatar-overlay-badge">🎨</div>
                 </div>
+                <input type="file" id="char-avatar-file" accept="image/*" style="display:none" />
                 <div class="profile-char-rank-tag">${rankTitle}</div>
               </div>
 
               <div class="profile-char-info-col">
                 <div class="profile-name-row">
                   <h1 class="profile-char-name">${escapeHtml(cur.displayName || cur.username)}</h1>
-                  <span class="chip ${isRegistered && !cur.isGuest ? "gold" : "ghost"}">${cur.isGuest || !isRegistered ? "🌱 Guest Planeswalker" : "✨ Registered Wizard"}</span>
                   <span class="chip gold profile-level-badge">⭐ Level ${cur.level || 1}</span>
                   ${cur.isAdmin ? `<span class="chip gold">👑 Admin</span>` : ""}
                   <button type="button" class="btn small ghost" id="btn-edit-displayname" title="Change Wizard Name">✏️ Name</button>
                 </div>
 
-                ${
-                  cur.walletAddress
-                    ? `
-                  <div class="profile-wallet-row">
+                <div class="profile-wallet-row" style="margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  ${
+                    cur.walletAddress
+                      ? `
                     <span class="wallet-icon">${cur.walletChain === "solana" ? "👻" : "🦊"}</span>
                     <span class="wallet-addr code-font">${escapeHtml(cur.walletAddress.slice(0, 10))}…${escapeHtml(cur.walletAddress.slice(-8))}</span>
-                    <button type="button" class="btn small ghost" id="btn-copy-char-wallet" data-addr="${escapeHtml(cur.walletAddress)}">📋 Copy</button>
+                    <button type="button" class="btn small ghost" id="btn-copy-char-wallet" data-addr="${escapeHtml(cur.walletAddress)}" style="font-size:11px;padding:2px 8px">📋 Copy</button>
+                    <button type="button" class="btn small ghost" id="btn-char-disconnect-wallet" title="Disconnect Web3 Wallet" style="font-size:11px;padding:2px 8px">🔌 Disconnect</button>
                     <span class="faint" style="font-size:11px">· Sepolia Testnet</span>
-                  </div>
-                `
-                    : ""
-                }
+                  `
+                      : `
+                    <span class="wallet-icon">👛</span>
+                    <span class="faint" style="font-size:12px">Web3 Wallet: Not linked</span>
+                    <button type="button" class="btn small ghost" id="btn-char-connect-web3" style="font-size:11px;padding:2px 8px">⚡ Connect Wallet</button>
+                  `
+                  }
+                </div>
 
                 <!-- XP & Progression System Bar -->
                 <div class="profile-xp-section" style="margin: 10px 0; background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;">
@@ -421,50 +452,8 @@
             <!-- Command Center Fast Action Bar -->
             <div class="profile-command-bar">
               <a class="btn gold pulse" onclick="window.MTG.openTablesModal && window.MTG.openTablesModal(); return false;" href="#">🏰 Enter Tables & Host Match</a>
-              <a class="btn ghost" onclick="window.MTG.go('/builder'); return false;" href="#">📖 Deck Builder</a>
               <button type="button" class="btn ghost" id="btn-char-friends">🤝 Friends Hub</button>
               <a class="btn ghost" onclick="window.MTG.go('/guilds'); return false;" href="#">⚔️ Guilds</a>
-              <a class="btn ghost" onclick="window.MTG.go('/dao'); return false;" href="#">🏛️ DAO</a>
-              <a class="btn ghost" href="#/dnd">🎲 D&D</a>
-            </div>
-          </div>
-
-          <!-- 1. PLAYERS SAVED DECKS APPEAR FIRST -->
-          ${renderDecksArmory()}
-
-          <!-- 2. Character Customization Station -->
-          <div class="card-panel" style="margin-top:20px">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-              <div>
-                <h3 style="margin:0">🎨 Character Customization Station</h3>
-                <p class="muted" style="margin:4px 0 0 0">Choose a cute familiar avatar, upload your custom wizard portrait, or switch multiverse visual theme:</p>
-              </div>
-              <label class="btn small gold" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-                📁 Upload Custom Portrait
-                <input type="file" id="char-avatar-file" accept="image/*" style="display:none" />
-              </label>
-            </div>
-
-            <!-- Presets Row -->
-            <div class="profile-presets-grid" style="margin-top:14px">
-              ${AVATAR_PRESETS.map((p) => `
-                <button type="button" class="profile-preset-tile ${cur.avatar === p.id ? "active" : ""}" data-preset="${p.id}" title="${p.name} · ${p.desc}">
-                  <span class="preset-tile-icon">${p.icon}</span>
-                  <span class="preset-tile-name">${p.name}</span>
-                </button>
-              `).join("")}
-            </div>
-
-            <!-- Visual Theme Switcher Toolbar inside Customizer -->
-            <div class="profile-skins-selector" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
-              <div class="faint" style="font-size:12px;font-weight:700;margin-bottom:8px">MULTIVERSE VISUAL THEMES:</div>
-              <div class="skin-chips-list" style="display:flex;flex-wrap:wrap;gap:8px">
-                ${(SKINS || []).map((s) => `
-                  <button type="button" class="btn small ${s.id === curSkinId ? "gold active-skin-chip" : "ghost"} btn-skin-pick" data-skin="${s.id}">
-                    <span>${s.icon}</span> <span>${escapeHtml(s.name)}</span>
-                  </button>
-                `).join("")}
-              </div>
             </div>
           </div>
 
@@ -512,49 +501,6 @@
             <div id="ach-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px">
               <span class="muted" style="font-size:11px;grid-column:1/-1">Loading achievements…</span>
             </div>
-          </div>
-
-          <!-- Web3 Decentralized Identity & Simulated Signer Box -->
-          <div class="card-panel" style="margin-top:28px">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-              <div>
-                <h3 style="margin:0;display:flex;align-items:center;gap:8px">
-                  <span>👛</span> Decentralized Web3 Crypto Identity
-                </h3>
-                <p class="muted" style="margin:2px 0 0 0">EIP-4361 cryptographic signer integration for sovereign on-chain wizards.</p>
-              </div>
-              <span class="chip gold">[ REMILIA NET-ART PROTOCOL ]</span>
-            </div>
-
-            ${
-              cur.walletAddress
-                ? `
-              <div class="web3-status-box" style="margin-top:14px;padding:14px;background:rgba(215,180,92,0.06);border:1px solid var(--gold);border-radius:8px">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-                  <div style="display:flex;align-items:center;gap:10px">
-                    <span style="font-size:32px">${cur.walletChain === "solana" ? "👻" : "🦊"}</span>
-                    <div>
-                      <div style="font-weight:700">${cur.walletChain === "solana" ? "Solana Phantom Signer (Simulated)" : "Ethereum EVM MetaMask (Simulated)"}</div>
-                      <div class="code-font" style="font-size:12px;color:var(--gold);word-break:break-all">${escapeHtml(cur.walletAddress)}</div>
-                    </div>
-                  </div>
-                  <div style="display:flex;gap:8px">
-                    <button type="button" class="btn small ghost" id="btn-char-disconnect-wallet">🔌 Disconnect</button>
-                    <button type="button" class="btn small ghost" id="btn-char-switch-wallet">🔀 Switch Wallet</button>
-                  </div>
-                </div>
-              </div>
-            `
-                : `
-              <div class="web3-unlinked-box" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:8px">
-                <div>
-                  <b>No Crypto Wallet Connected</b>
-                  <div class="faint" style="font-size:12px">Link a MetaMask, Phantom, or 1-Click Burner wallet to unlock on-chain badges!</div>
-                </div>
-                <button type="button" class="btn small gold" id="btn-char-connect-web3">⚡ Connect Web3 Wallet</button>
-              </div>
-            `
-            }
           </div>
 
           <!-- Multiverse Leaderboard Placement -->
@@ -606,6 +552,24 @@
             <div style="display:flex;gap:8px">
               <button type="button" class="btn small ghost" id="btn-char-switch-acc">🔄 Switch Character</button>
               <button type="button" class="btn small danger" id="btn-char-logout">🚪 Log Out</button>
+            </div>
+          </div>
+
+          <!-- Saved Decks Armory -->
+          ${renderDecksArmory()}
+
+          <!-- Multiverse Visual Themes Chooser -->
+          <div class="card-panel" style="margin-top:28px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h3 style="margin:0;display:flex;align-items:center;gap:8px">🎨 Multiverse Visual Themes</h3>
+              <span class="faint" style="font-size:12px">Select Interface Skin</span>
+            </div>
+            <div class="skin-chips-list" style="display:flex;flex-wrap:wrap;gap:8px">
+              ${(SKINS || []).map((s) => `
+                <button type="button" class="btn small ${s.id === curSkinId ? "gold active-skin-chip" : "ghost"} btn-skin-pick" data-skin="${s.id}">
+                  <span>${s.icon}</span> <span>${escapeHtml(s.name)}</span>
+                </button>
+              `).join("")}
             </div>
           </div>
         `;

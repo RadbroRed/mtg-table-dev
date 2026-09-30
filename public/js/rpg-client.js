@@ -154,6 +154,12 @@
       }
     });
 
+    socket.on('chat', (data) => {
+      if (data && data.text && window.MTG_RPG?.addLog) {
+        window.MTG_RPG.addLog('say', data.text, data.name || 'Planeswalker');
+      }
+    });
+
     socket.on('disconnect', () => {
       console.log('🎮 [rpg-client] disconnected from RPGJS world');
     });
@@ -234,13 +240,18 @@
       ol.id = 'sparring-overlay';
       ol.className = 'sparring-overlay-modal';
       ol.style.cssText = [
-        'position:fixed;inset:0;z-index:10000',
+        'position:fixed;inset:0;z-index:100070',
         'background:rgba(8,12,20,0.95)',
         'display:flex;flex-direction:column;align-items:center;justify-content:center',
         'color:#efece3;font-family:system-ui,sans-serif',
         'backdrop-filter:blur(6px)',
       ].join(';');
       document.body.appendChild(ol);
+    }
+    if (window.MTG?.bringToFront) {
+      window.MTG.bringToFront(ol);
+    } else {
+      ol.style.zIndex = '100070';
     }
     ol.hidden = false;
 
@@ -349,11 +360,18 @@
     connectRpg();
   }
 
+  function sendChat(text) {
+    if (socket && socket.connected && text) {
+      socket.emit('chat', { text });
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────
   window.MTG_RPG_CLIENT = {
     getSocket: () => socket,
     getMyId:   () => myId,
     sendMove,
+    sendChat,
     onCastSpell,
     onSparringHit,
     openSparring: openSparringOverlay,

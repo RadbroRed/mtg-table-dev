@@ -71,10 +71,23 @@
     topNavHud.className = "dfk-topright-hud";
     container.appendChild(topNavHud);
 
+    // Single Unified Bottom Menu: Buttons on bottom, chat right above
+    const bottomDockEl = document.createElement("div");
+    bottomDockEl.id = "dfk-bottom-dock";
+    bottomDockEl.className = "dfk-bottom-dock";
+    container.appendChild(bottomDockEl);
+
+    // FFXI Combined Chat & Log Window (Top part of dock / chat right above)
+    const ffxiChatEl = document.createElement("div");
+    ffxiChatEl.id = "ffxi-chat-window";
+    ffxiChatEl.className = "ffxi-window ffxi-overworld-chat";
+    bottomDockEl.appendChild(ffxiChatEl);
+
+    // Bottom Action & Navigation Hotbar (Bottom part of dock / buttons on bottom)
     const hotbarEl = document.createElement("div");
     hotbarEl.id = "dfk-bottom-hotbar";
     hotbarEl.className = "dfk-bottom-hotbar";
-    container.appendChild(hotbarEl);
+    bottomDockEl.appendChild(hotbarEl);
 
     const promptEl = document.createElement("div");
     promptEl.id = "dfk-prompt";
@@ -102,7 +115,163 @@
 
     let viewW = 1200, viewH = 800;
 
-    /* ── FF7 WORLD MAP & LUNAR SPRITE ENGINE ── */
+    /* ── TMX TILEMAP ENGINE (Authentic 1280x800 homeroom.tmx + tiles/world.png) ── */
+    const WORLD_MAP_W = 1280;
+    const WORLD_MAP_H = 800;
+
+    let camX = 0;
+    let camY = 0;
+
+    function updateCamera() {
+      if (viewW >= WORLD_MAP_W) {
+        camX = Math.round((WORLD_MAP_W - viewW) / 2);
+      } else {
+        camX = Math.max(0, Math.min(WORLD_MAP_W - viewW, Math.round(hero.x - viewW / 2)));
+      }
+      if (viewH >= WORLD_MAP_H) {
+        camY = Math.round((WORLD_MAP_H - viewH) / 2);
+      } else {
+        camY = Math.max(0, Math.min(WORLD_MAP_H - viewH, Math.round(hero.y - viewH / 2)));
+      }
+    }
+
+    // Default inline homeroom CSV data as instant synchronous fallback
+    const HOMEROOM_TMX_CSV = [
+      2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,1,1,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,1,1,2,
+      2,1,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,
+      2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,1,1,2,2,2,2,2,2,2,2,2,1,1,1,1,4,4,1,3,3,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,2,1,1,1,1,4,4,1,3,3,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,4,4,1,3,3,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,2,1,1,2,
+      2,1,1,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,1,1,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,
+      2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
+    ];
+
+    let tmxMap = {
+      name: "homeroom",
+      cols: 40,
+      rows: 25,
+      tileW: 32,
+      tileH: 32,
+      width: WORLD_MAP_W,
+      height: WORLD_MAP_H,
+      data: HOMEROOM_TMX_CSV,
+      collisions: [false, true, false, true],
+    };
+
+    const tmxCanvas = document.createElement("canvas");
+    tmxCanvas.width = WORLD_MAP_W;
+    tmxCanvas.height = WORLD_MAP_H;
+    const tmxCtx = tmxCanvas.getContext("2d");
+    let tmxCanvasReady = false;
+
+    const tmxTilesetImg = new Image();
+    let tmxTilesetLoaded = false;
+
+    function renderTmxTilemap() {
+      if (!tmxTilesetLoaded || !tmxTilesetImg.naturalWidth) return;
+      tmxCtx.imageSmoothingEnabled = false;
+      tmxCtx.clearRect(0, 0, tmxMap.width, tmxMap.height);
+
+      const cols = tmxMap.cols;
+      const rows = tmxMap.rows;
+      const tw = tmxMap.tileW;
+      const th = tmxMap.tileH;
+      const data = tmxMap.data;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const gid = data[r * cols + c];
+          if (!gid || gid < 1) continue;
+          const tileIdx = gid - 1;
+          const sx = (tileIdx % 2) * tw;
+          const sy = Math.floor(tileIdx / 2) * th;
+          const dx = c * tw;
+          const dy = r * th;
+          tmxCtx.drawImage(tmxTilesetImg, sx, sy, tw, th, dx, dy, tw, th);
+        }
+      }
+      tmxCanvasReady = true;
+    }
+
+    tmxTilesetImg.onload = () => {
+      tmxTilesetLoaded = true;
+      renderTmxTilemap();
+    };
+    tmxTilesetImg.onerror = () => {
+      if (!tmxTilesetImg.src.includes("/rpg-world/maps/tiles/")) {
+        tmxTilesetImg.src = "/rpg-world/maps/tiles/world.png";
+      }
+    };
+    tmxTilesetImg.src = "/assets/tiles/world.png";
+
+    async function loadTmxMap(mapName = "homeroom") {
+      try {
+        const res = await fetch(`/api/rpg/map/${mapName}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.layers && json.layers[0] && json.layers[0].data) {
+            tmxMap.name = json.name || mapName;
+            tmxMap.cols = json.width || 40;
+            tmxMap.rows = json.height || 25;
+            tmxMap.tileW = json.tilewidth || 32;
+            tmxMap.tileH = json.tileheight || 32;
+            tmxMap.width = tmxMap.cols * tmxMap.tileW;
+            tmxMap.height = tmxMap.rows * tmxMap.tileH;
+            tmxMap.data = json.layers[0].data;
+            if (json.tileset && json.tileset.collisions) {
+              tmxMap.collisions = json.tileset.collisions;
+            }
+            if (tmxCanvas.width !== tmxMap.width || tmxCanvas.height !== tmxMap.height) {
+              tmxCanvas.width = tmxMap.width;
+              tmxCanvas.height = tmxMap.height;
+            }
+            renderTmxTilemap();
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("[rpg] Failed to fetch TMX map JSON, using built-in definition:", err);
+      }
+      renderTmxTilemap();
+    }
+    loadTmxMap("homeroom");
+
+    function isTileBlocked(x, y) {
+      if (x < 16 || x > WORLD_MAP_W - 16 || y < 16 || y > WORLD_MAP_H - 16) return true;
+      const col = Math.floor(x / tmxMap.tileW);
+      const row = Math.floor(y / tmxMap.tileH);
+      if (col < 0 || col >= tmxMap.cols || row < 0 || row >= tmxMap.rows) return true;
+      const gid = tmxMap.data[row * tmxMap.cols + col];
+      return gid === 2;
+    }
+
+    function canHeroOccupy(x, y) {
+      const r = 10;
+      return !isTileBlocked(x, y) &&
+             !isTileBlocked(x - r, y - r) &&
+             !isTileBlocked(x + r, y - r) &&
+             !isTileBlocked(x - r, y + r) &&
+             !isTileBlocked(x + r, y + r);
+    }
+
     let pixelMap = null;
     let pixelMapKey = "";
 
@@ -111,79 +280,13 @@
       cnv.width = w;
       cnv.height = h;
       const g = cnv.getContext("2d");
-      const img = g.createImageData(w, h);
-      const px = img.data;
-      const set = (x, y, r, gg, b) => {
-        if (x < 0 || y < 0 || x >= w || y >= h) return;
-        const i = (y * w + x) * 4;
-        px[i] = r; px[i + 1] = gg; px[i + 2] = b; px[i + 3] = 255;
-      };
-      const cx = w * 0.5;
-      const cy = h * 0.47;
-      const R = Math.min(w, h) * 0.34;
-      const zones = [
-        [214, 176, 92],
-        [196, 96, 84],
-        [98, 162, 90],
-        [170, 148, 198],
-        [216, 198, 164],
-        [102, 170, 160],
-      ];
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const dx = x - cx;
-          const dy = y - cy;
-          const dist = Math.hypot(dx, dy);
-          let ang = Math.atan2(dx, -dy);
-          if (ang < 0) ang += Math.PI * 2;
-          const spoke = ((ang + Math.PI / 6) % (Math.PI / 3)) - Math.PI / 6;
-          const onSpoke = Math.abs(spoke) < 0.05;
-          const zone = Math.floor(ang / (Math.PI / 3)) % 6;
-          let r = 22;
-          let gg = 72;
-          let b = 128;
-          if (dist < R * 1.14 && dist > R) {
-            r = 46; gg = 114; b = 160;
-          }
-          const onBridge = Math.abs(dy) < Math.max(5, R * 0.04) && dx < -R * 0.9 && dx > -R * 1.82;
-          const onFarShore = Math.hypot((dx + R * 1.96) / (R * 0.26), dy / (R * 0.2)) < 1;
-          const onDocks = dy > R * 0.96 && dy < R * 1.34 && Math.abs(dx) < R * 0.58;
-          const onArcane = Math.hypot(x - (cx + R * 1.48), y - cy) < R * 0.26;
-          const onPrison = Math.hypot(x - (cx + R * 0.9), y - (cy - R * 1.16)) < R * 0.16;
-          const onCause = Math.abs(dy) < Math.max(4, R * 0.028) && dx > R * 0.92 && dx < R * 1.24;
-          if (dist <= R) {
-            if (dist < R * 0.2) {
-              r = 48; gg = 108; b = 64;
-            } else if (dist < R * 0.27 || (onSpoke && dist < R * 0.9)) {
-              r = 236; gg = 228; b = 208;
-            } else if (dist > R * 0.91) {
-              if (onSpoke) { r = 236; gg = 228; b = 208; }
-              else { r = 74; gg = 68; b = 62; }
-            } else {
-              const z = zones[zone];
-              const shade = ((x + y * 3) & 15) === 0 ? -12 : 0;
-              r = z[0] + shade; gg = z[1] + shade; b = z[2] + shade;
-            }
-          } else if (onDocks) {
-            r = 154; gg = 126; b = 84;
-            if ((x & 6) === 0) { r = 92; gg = 74; b = 48; }
-          } else if (onArcane) {
-            r = 146; gg = 126; b = 178;
-          } else if (onPrison) {
-            r = 132; gg = 130; b = 124;
-          } else if (onBridge || onCause) {
-            r = 176; gg = 164; b = 138;
-          } else if (onFarShore) {
-            r = 108; gg = 150; b = 84;
-          }
-          set(x, y, r, gg, b);
-        }
-      }
-      g.putImageData(img, 0, 0);
+      g.fillStyle = "#1e392a";
+      g.fillRect(0, 0, w, h);
       return cnv;
     }
 
     function ensurePixelKingdom() {
+      if (tmxCanvasReady) return tmxCanvas;
       const key = viewW + "x" + viewH;
       if (pixelMap && pixelMapKey === key) return pixelMap;
       pixelMap = paintImperialCity(Math.max(320, viewW), Math.max(240, viewH));
@@ -233,10 +336,10 @@
     };
 
     const overworldDecor = [
-      { id: "windmill", type: "windmill", xRel: 0.88, yRel: 0.52, name: "Kalm Windmill" },
-      { id: "stables", type: "stables", xRel: 0.08, yRel: 0.48, name: "Chocobo Farm" },
-      { id: "workshop", type: "workshop", xRel: 0.18, yRel: 0.62, name: "Corel Quarry Workshop" },
-      { id: "alchemist", type: "alchemist", xRel: 0.92, yRel: 0.82, name: "Mideel Apothecary" },
+      { id: "windmill", type: "windmill", x: 1210, y: 416, xRel: 0.94, yRel: 0.52, name: "Kalm Windmill" },
+      { id: "stables", type: "stables", x: 70, y: 416, xRel: 0.06, yRel: 0.52, name: "Chocobo Farm" },
+      { id: "workshop", type: "workshop", x: 440, y: 620, xRel: 0.34, yRel: 0.77, name: "Corel Quarry Workshop" },
+      { id: "alchemist", type: "alchemist", x: 840, y: 620, xRel: 0.65, yRel: 0.77, name: "Mideel Apothecary" },
     ];
 
     Object.keys(buildingAssets).forEach(k => {
@@ -484,78 +587,60 @@
     let roomAnimTick = 0;
     let areaCooldown = 0;
 
-    /* ── RESIZE ── */
-    function citySpot(W, H, deg, scale) {
-      const cx = W * 0.5;
-      const cy = H * 0.47;
-      const R = Math.min(W, H) * 0.34;
-      const a = deg * Math.PI / 180;
-      return {
-        x: Math.round(cx + Math.sin(a) * R * scale),
-        y: Math.round(cy - Math.cos(a) * R * scale),
-        cx, cy, R,
-      };
-    }
-
+    /* ── RESIZE & TMX WORLD POSITIONS ── */
     function updateLandmarkPositions() {
-      const W = viewW, H = viewH;
-      const hub = citySpot(W, H, 0, 0);
-      const place = (i, deg, scale) => {
-        const p = citySpot(W, H, deg, scale);
-        landmarks[i].x = p.x;
-        landmarks[i].y = p.y;
+      // Fixed TMX world positions for landmarks on the 1280x800 homeroom map
+      const tmxPositions = {
+        arena:   { x: 1056, y: 180, padX: 1056, padY: 320, w: 180, h: 120 },
+        builder: { x: 224,  y: 180, padX: 224,  padY: 320, w: 180, h: 120 },
+        guilds:  { x: 1056, y: 590, padX: 1056, padY: 640, w: 180, h: 120 },
+        dao:     { x: 240,  y: 590, padX: 240,  padY: 640, w: 180, h: 120 },
+        bazaar:  { x: 820,  y: 416, padX: 820,  padY: 456, w: 180, h: 110 },
+        dnd:     { x: 440,  y: 416, padX: 440,  padY: 456, w: 180, h: 110 },
+        mirror:  { x: 640,  y: 90,  padX: 640,  padY: 130, w: 140, h: 100 },
       };
-      // Clockwise from the north, matching the Imperial City wheel.
-      place(5, 30, 0.58);  // Marketplace in the Market district
-      place(0, 90, 0.58);  // Colosseum in the Arena district
-      place(6, 210, 0.58); // Meditation in the Temple district
-      place(3, 270, 0.58); // Bank in Talos Plaza
-      place(1, 330, 0.58); // Gardens in the Elven Gardens
-      landmarks[2].x = hub.cx; // Tavern on the waterfront docks
-      landmarks[2].y = Math.round(hub.cy + hub.R * 1.12);
-      landmarks[4].x = Math.round(hub.cx + hub.R * 1.48); // Alchemist on the east island
-      landmarks[4].y = hub.cy;
-      const size = (i, wf, hf) => {
-        landmarks[i].w = Math.min(150, Math.round(W * wf));
-        landmarks[i].h = Math.min(120, Math.round(H * hf));
-      };
-      size(0, 0.11, 0.13);
-      size(1, 0.10, 0.13);
-      size(2, 0.11, 0.13);
-      size(3, 0.10, 0.12);
-      size(4, 0.10, 0.12);
-      size(5, 0.10, 0.12);
-      size(6, 0.09, 0.11);
 
-      // Calculate dedicated Area Portal Pads for each section of the main map
       landmarks.forEach((lm) => {
-        const params = buildingVisualParams[lm.id] || { bannerOffY: 66, padOffY: 82 };
-        lm.bannerY = lm.y + params.bannerOffY;
-        lm.padX = lm.x;
-        lm.padY = lm.y + params.padOffY;
-        lm.padRadius = 16;
+        const pos = tmxPositions[lm.id];
+        if (pos) {
+          lm.x = pos.x;
+          lm.y = pos.y;
+          lm.w = pos.w;
+          lm.h = pos.h;
+          lm.padX = pos.padX;
+          lm.padY = pos.padY;
+        }
+        const params = buildingVisualParams[lm.id] || { bannerOffY: 52, padOffY: 68 };
+        lm.bannerY = lm.y + (params.bannerOffY || 52);
+        if (lm.padX == null) lm.padX = lm.x;
+        if (lm.padY == null) lm.padY = lm.y + (params.padOffY || 68);
+        lm.padRadius = 18;
       });
 
-      manaWell.x = hub.cx;
-      manaWell.y = hub.cy;
-      manaWell.radius = Math.min(28, Math.round(Math.min(W, H) * 0.032));
-      campfire.x = Math.round(hub.cx - hub.R * 0.28);
-      campfire.y = Math.round(hub.cy + hub.R * 1.12);
-      dummy.x = Math.round(hub.cx + hub.R * 0.9);
-      dummy.y = Math.round(hub.cy - hub.R * 1.16);
-      sparky.x = Math.round(hub.cx + hub.R * 0.16);
-      sparky.y = Math.round(hub.cy + hub.R * 0.16);
-      overworldDecor[0].xRel = (hub.cx - hub.R * 1.95) / W;
-      overworldDecor[0].yRel = hub.cy / H;
-      overworldDecor[1].xRel = (hub.cx - hub.R * 1.95) / W;
-      overworldDecor[1].yRel = (hub.cy + hub.R * 0.28) / H;
-      overworldDecor[2].xRel = (hub.cx - hub.R * 0.36) / W;
-      overworldDecor[2].yRel = (hub.cy + hub.R * 1.12) / H;
-      overworldDecor[3].xRel = (hub.cx + hub.R * 1.48) / W;
-      overworldDecor[3].yRel = (hub.cy - hub.R * 0.22) / H;
+      // Central Hub & NPCs
+      manaWell.x = 640;
+      manaWell.y = 240;
+      manaWell.radius = 32;
+
+      campfire.x = 550;
+      campfire.y = 460;
+
+      // Exact server coordinates
+      dummy.x = 680;
+      dummy.y = 320;
+
+      sparky.x = 520;
+      sparky.y = 220;
+
+      // Secondary Decor
+      if (overworldDecor[0]) { overworldDecor[0].x = 1210; overworldDecor[0].y = 416; } // Windmill
+      if (overworldDecor[1]) { overworldDecor[1].x = 70;   overworldDecor[1].y = 416; } // Stables
+      if (overworldDecor[2]) { overworldDecor[2].x = 440;  overworldDecor[2].y = 620; } // Workshop
+      if (overworldDecor[3]) { overworldDecor[3].x = 840;  overworldDecor[3].y = 620; } // Alchemist
+
       if (!hero._citySpawn) {
-        hero.x = Math.round(hub.cx - hub.R * 1.2);
-        hero.y = hub.cy;
+        hero.x = 600;
+        hero.y = 440;
         hero._citySpawn = true;
       }
     }
@@ -575,13 +660,14 @@
       roomCanvas.style.width = `${viewW}px`; roomCanvas.style.height = `${viewH}px`;
       rCtx.imageSmoothingEnabled = false;
       updateLandmarkPositions();
-      hero.x = Math.max(50, Math.min(viewW - 50, hero.x));
-      hero.y = Math.max(50, Math.min(viewH - 50, hero.y));
+      hero.x = Math.max(24, Math.min(WORLD_MAP_W - 24, hero.x));
+      hero.y = Math.max(24, Math.min(WORLD_MAP_H - 24, hero.y));
+      updateCamera();
     }
 
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
-    hero.x = Math.round(viewW * 0.53); hero.y = Math.round(viewH * 0.48);
+    hero.x = 600; hero.y = 440;
 
     /* ══════════════════════════════════════════════════════════════════════
        BUILDING SPRITE RENDERERS — pixel-art style drawn in canvas 2D
@@ -695,17 +781,133 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
     colosseumMap.onload = () => { colosseumMapLoaded = true; };
     colosseumMap.src = "/assets/rooms/colosseum.jpg";
 
-    function colosseumFrame(W, H) {
-      const iw = colosseumMap.naturalWidth || 1200;
-      const ih = colosseumMap.naturalHeight || 1350;
+    const gardensMap = new Image();
+    let gardensMapLoaded = false;
+    gardensMap.onload = () => { gardensMapLoaded = true; };
+    gardensMap.onerror = () => {
+      const fb = "https://i.pinimg.com/1200x/d3/52/df/d352dfbbc998f14d2d00762a5043e77e.jpg";
+      if (gardensMap.src !== fb) gardensMap.src = fb;
+    };
+    gardensMap.src = "/assets/rooms/gardens.jpg";
+
+    const tavernMap = new Image();
+    let tavernMapLoaded = false;
+    tavernMap.onload = () => { tavernMapLoaded = true; };
+    tavernMap.onerror = () => {
+      const fb = "https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fi.etsystatic.com%2F38888920%2Fr%2Fil%2F84af78%2F6255979430%2Fil_1140xN.6255979430_6fok.jpg&f=1&nofb=1&ipt=6af6241776155aa6b296e518a8e6884837bb4919e0337438683d0447e5af1be0&ipo=images";
+      if (tavernMap.src !== fb) tavernMap.src = fb;
+    };
+    tavernMap.src = "/assets/rooms/tavern.jpg";
+    const tavernInterior = tavernMap;
+    const tavernInteriorLoaded = true;
+
+    const bankMap = new Image();
+    let bankMapLoaded = false;
+    bankMap.onload = () => { bankMapLoaded = true; };
+    bankMap.onerror = () => {
+      const fb = "https://i.pinimg.com/1200x/82/24/e4/8224e4e6112676a4d7387821bd57eed3.jpg";
+      if (bankMap.src !== fb) bankMap.src = fb;
+    };
+    bankMap.src = "/assets/rooms/bank.jpg";
+
+    const alchemistMap = new Image();
+    let alchemistMapLoaded = false;
+    alchemistMap.onload = () => { alchemistMapLoaded = true; };
+    alchemistMap.onerror = () => {
+      const fb = "https://i.pinimg.com/1200x/8d/31/b6/8d31b6b69794bb09c585c26fc968518a.jpg";
+      if (alchemistMap.src !== fb) alchemistMap.src = fb;
+    };
+    alchemistMap.src = "/assets/rooms/alchemist.jpg";
+
+    const marketplaceMap = new Image();
+    let marketplaceMapLoaded = false;
+    marketplaceMap.onload = () => { marketplaceMapLoaded = true; };
+    marketplaceMap.onerror = () => {
+      const fb = "https://i.etsystatic.com/38888920/r/il/45bf8c/5055801046/il_680x540.5055801046_sr78.jpg";
+      if (marketplaceMap.src !== fb) marketplaceMap.src = fb;
+    };
+    marketplaceMap.src = "/assets/rooms/marketplace.jpg";
+
+    const meditationMap = new Image();
+    let meditationMapLoaded = false;
+    meditationMap.onload = () => { meditationMapLoaded = true; };
+    meditationMap.onerror = () => {
+      const fb = "https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fi.etsystatic.com%2F18388031%2Fr%2Fil%2F781e38%2F4979311693%2Fil_794xN.4979311693_lh9m.jpg&f=1&nofb=1&ipt=8c41a6aa3a20014eff9904165ba7e80df5d0a2c0f6b767b7fd8153feb50bbcd0&ipo=images";
+      if (meditationMap.src !== fb) meditationMap.src = fb;
+    };
+    meditationMap.src = "/assets/rooms/meditation.jpg";
+
+    function getRoomFrame(roomId, W, H) {
+      let img = null, defW = 1000, defH = 1000;
+      switch (roomId) {
+        case "arena":     img = colosseumMap;   defW = 1200; defH = 1350; break;
+        case "builder":   img = gardensMap;     defW = 1200; defH = 1200; break;
+        case "guilds":    img = tavernMap;      defW = 1140; defH = 1140; break;
+        case "dao":       img = bankMap;        defW = 1000; defH = 1333; break;
+        case "dnd":       img = alchemistMap;   defW = 807;  defH = 807;  break;
+        case "bazaar":    img = marketplaceMap; defW = 680;  defH = 540;  break;
+        case "mirror":    img = meditationMap;  defW = 794;  defH = 794;  break;
+        default: return { x: 0, y: 0, dw: W, dh: H, scale: 1, iw: W, ih: H };
+      }
+      const iw = (img && img.naturalWidth) || defW;
+      const ih = (img && img.naturalHeight) || defH;
       const scale = Math.min((W * 0.96) / iw, (H * 0.94) / ih);
       const dw = iw * scale;
       const dh = ih * scale;
-      return { x: (W - dw) / 2, y: (H - dh) / 2, dw, dh };
+      return { x: (W - dw) / 2, y: (H - dh) / 2, dw, dh, scale, iw, ih };
+    }
+
+    function colosseumFrame(W, H) { return getRoomFrame("arena", W, H); }
+    function gardensFrame(W, H) { return getRoomFrame("builder", W, H); }
+    function tavernFrame(W, H) { return getRoomFrame("guilds", W, H); }
+    function bankFrame(W, H) { return getRoomFrame("dao", W, H); }
+    function alchemistFrame(W, H) { return getRoomFrame("dnd", W, H); }
+    function marketplaceFrame(W, H) { return getRoomFrame("bazaar", W, H); }
+    function meditationFrame(W, H) { return getRoomFrame("mirror", W, H); }
+
+    function drawRoomExit(c, fr, color) {
+      const ex = fr.x + fr.dw * 0.5;
+      const ey = fr.y + fr.dh * 0.92;
+      c.fillStyle = "rgba(10, 14, 22, 0.85)";
+      c.beginPath();
+      c.ellipse(ex, ey, 36, 14, 0, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = color || "#d7b45c";
+      c.lineWidth = 2;
+      c.stroke();
+      c.font = "bold 9px system-ui,sans-serif";
+      c.fillStyle = color || "#d7b45c";
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.fillText("EXIT", ex, ey);
+    }
+
+    function drawRoomInteractiveMarkers(c, roomId, W, H, t, color) {
+      const interactions = getRoomInteractions(roomId, W, H);
+      for (const item of interactions) {
+        c.save();
+        const pulse = 0.55 + Math.sin(t * 0.005 + item.x * 0.05) * 0.3;
+        c.fillStyle = "rgba(0, 0, 0, 0.55)";
+        c.beginPath();
+        c.ellipse(item.x, item.y + 12, 26, 9, 0, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = color || "#d7b45c";
+        c.lineWidth = 1.5;
+        c.globalAlpha = pulse;
+        c.beginPath();
+        c.ellipse(item.x, item.y + 12, 22, 8, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.globalAlpha = 1;
+        c.font = "20px system-ui,sans-serif";
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        c.fillText(item.icon, item.x, item.y - 2 + Math.sin(t * 0.004 + item.x) * 3);
+        c.restore();
+      }
     }
 
     function drawRoomArena(c, W, H, t, rh) {
-      c.fillStyle = "#140c08";
+      c.fillStyle = "#0d0505";
       c.fillRect(0, 0, W, H);
       if (colosseumMapLoaded && colosseumMap.naturalWidth > 0) {
         const fr = colosseumFrame(W, H);
@@ -713,690 +915,100 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
         c.imageSmoothingEnabled = true;
         c.drawImage(colosseumMap, fr.x, fr.y, fr.dw, fr.dh);
         c.restore();
-        const ex = fr.x + fr.dw * 0.5;
-        const ey = fr.y + fr.dh * 0.9;
-        c.fillStyle = "#1a1008";
-        c.beginPath();
-        c.ellipse(ex, ey, 34, 14, 0, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = "#ef4444";
-        c.lineWidth = 2;
-        c.stroke();
-        c.font = "bold 9px system-ui,sans-serif";
-        c.fillStyle = "#f3dd9a";
-        c.textAlign = "center";
-        c.textBaseline = "middle";
-        c.fillText("EXIT", ex, ey);
+        drawRoomExit(c, fr, "#ef4444");
       }
+      drawRoomInteractiveMarkers(c, "arena", W, H, t, "#ef4444");
       _drawRoomHero(c, rh, t);
     }
 
-    const gardensMap = new Image();
-    let gardensMapLoaded = false;
-    gardensMap.onload = () => { gardensMapLoaded = true; };
-    gardensMap.src = "/assets/rooms/gardens.jpg";
-
-    function gardensFrame(W, H) {
-      const iw = gardensMap.naturalWidth || 1000;
-      const ih = gardensMap.naturalHeight || 1200;
-      const scale = Math.min((W * 0.96) / iw, (H * 0.94) / ih);
-      const dw = iw * scale;
-      const dh = ih * scale;
-      return { x: (W - dw) / 2, y: (H - dh) / 2, dw, dh };
-    }
-
     function drawRoomBuilder(c, W, H, t, rh) {
-      c.fillStyle = "#143018";
+      c.fillStyle = "#030d1a";
       c.fillRect(0, 0, W, H);
       if (gardensMapLoaded && gardensMap.naturalWidth > 0) {
         const fr = gardensFrame(W, H);
         c.save();
-        c.imageSmoothingEnabled = false;
+        c.imageSmoothingEnabled = true;
         c.drawImage(gardensMap, fr.x, fr.y, fr.dw, fr.dh);
         c.restore();
-        const ex = fr.x + fr.dw * 0.5;
-        const ey = fr.y + fr.dh * 0.93;
-        c.fillStyle = "#143018";
-        c.beginPath();
-        c.ellipse(ex, ey, 34, 14, 0, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = "#86efac";
-        c.lineWidth = 2;
-        c.stroke();
-        c.font = "bold 9px system-ui,sans-serif";
-        c.fillStyle = "#ecfccb";
-        c.textAlign = "center";
-        c.textBaseline = "middle";
-        c.fillText("EXIT", ex, ey);
+        drawRoomExit(c, fr, "#38bdf8");
       }
+      drawRoomInteractiveMarkers(c, "builder", W, H, t, "#38bdf8");
       _drawRoomHero(c, rh, t);
     }
 
     function drawRoomGuilds(c, W, H, t, rh) {
-      c.fillStyle = "#120a00"; c.fillRect(0, 0, W, H);
-      if (tavernInteriorLoaded && tavernInterior.naturalWidth > 0) {
+      c.fillStyle = "#0d0a00";
+      c.fillRect(0, 0, W, H);
+      if (tavernMapLoaded && tavernMap.naturalWidth > 0) {
         const fr = tavernFrame(W, H);
         c.save();
-        c.imageSmoothingEnabled = false;
-        c.drawImage(tavernInterior, fr.x, fr.y, fr.dw, fr.dh);
+        c.imageSmoothingEnabled = true;
+        c.drawImage(tavernMap, fr.x, fr.y, fr.dw, fr.dh);
         c.restore();
-        c.fillStyle = "#1a1008";
-        c.beginPath();
-        c.ellipse(fr.x + fr.dw * 0.5, fr.y + fr.dh * 0.9, 34, 16, 0, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = "#f59e0b";
-        c.lineWidth = 2;
-        c.stroke();
-        c.font = "bold 9px system-ui,sans-serif";
-        c.fillStyle = "#f59e0b";
-        c.textAlign = "center";
-        c.textBaseline = "middle";
-        c.fillText("EXIT", fr.x + fr.dw * 0.5, fr.y + fr.dh * 0.9);
-      } else {
-      // Warm stone floor
-      for (let ty = 0; ty < H; ty += 48) {
-        for (let tx = 0; tx < W; tx += 64) {
-          c.fillStyle = `rgba(${60 + ((tx/64+ty/48)%3)*10},${30},0,1)`;
-          c.fillRect(tx, ty, 64, 48);
-          c.strokeStyle = "rgba(0,0,0,0.3)"; c.lineWidth = 1; c.strokeRect(tx, ty, 64, 48);
-        }
+        drawRoomExit(c, fr, "#f59e0b");
       }
-      // Grand hall pillars
-      const pillarX = [W * 0.12, W * 0.88];
-      for (const px of pillarX) {
-        const pilGrd = c.createLinearGradient(px - 18, 0, px + 18, 0);
-        pilGrd.addColorStop(0, "#4a2800"); pilGrd.addColorStop(0.4, "#7a4800"); pilGrd.addColorStop(1, "#3a1c00");
-        c.fillStyle = pilGrd; c.fillRect(px - 18, 0, 36, H);
-        // Carved relief lines
-        c.strokeStyle = "rgba(0,0,0,0.5)"; c.lineWidth = 1;
-        for (let py = 30; py < H; py += 40) { c.beginPath(); c.moveTo(px - 16, py); c.lineTo(px + 16, py); c.stroke(); }
-        // Torch on pillar
-        const tf = 0.5 + Math.sin(t * 0.012 + px) * 0.5;
-        c.save(); c.globalAlpha = tf * 0.5; c.fillStyle = "#f97316"; c.beginPath(); c.arc(px, H * 0.35, 20, 0, Math.PI * 2); c.fill(); c.restore();
-        c.font = "18px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("🔥", px, H * 0.35 - 18);
-      }
-
-      // Throne dais at far end
-      c.fillStyle = "#1e0d00"; c.fillRect(W * 0.25, H * 0.12, W * 0.5, H * 0.12);
-
-      // Raised Citadel Fortress sitting on elevated stone dais
-      const fortAsset = buildingAssets.guilds;
-      if (fortAsset && (fortAsset.loaded || fortAsset.img.complete) && fortAsset.img.naturalWidth > 0) {
-        c.save();
-        const sc = 0.52;
-        const fw = Math.round(fortAsset.img.naturalWidth * sc);
-        const fh = Math.round(fortAsset.img.naturalHeight * sc);
-        c.drawImage(fortAsset.img, Math.round(W/2 - fw/2), Math.round(H * 0.02), fw, fh);
-        c.restore();
-      }
-
-      // Guild banners hanging from ceiling
-      const guildBanners = [
-        { x: W * 0.2, color: "#ef4444", name: "Boros" },
-        { x: W * 0.35, color: "#6366f1", name: "Dimir" },
-        { x: W * 0.5, color: "#22c55e", name: "Golgari" },
-        { x: W * 0.65, color: "#f97316", name: "Gruul" },
-        { x: W * 0.8, color: "#a855f7", name: "Orzhov" },
-      ];
-      for (const gb of guildBanners) {
-        const gbH = 70 + Math.sin(t * 0.004 + gb.x * 0.02) * 5;
-        c.fillStyle = gb.color;
-        c.beginPath(); c.moveTo(gb.x - 14, 0); c.lineTo(gb.x + 14, 0); c.lineTo(gb.x + 14, gbH); c.lineTo(gb.x, gbH + 10); c.lineTo(gb.x - 14, gbH); c.closePath(); c.fill();
-        c.strokeStyle = "rgba(255,255,255,0.2)"; c.lineWidth = 1; c.stroke();
-        c.fillStyle = "rgba(255,255,255,0.8)"; c.font = "bold 7px sans-serif"; c.textAlign = "center";
-        c.fillText(gb.name, gb.x, 30);
-        // Guild symbol
-        c.font = "12px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText("⚔️", gb.x, 50);
-        // Hanging rope
-        c.strokeStyle = "#5d3b1a"; c.lineWidth = 2;
-        c.beginPath(); c.moveTo(gb.x - 14, 0); c.lineTo(gb.x - 14, -8); c.stroke();
-        c.beginPath(); c.moveTo(gb.x + 14, 0); c.lineTo(gb.x + 14, -8); c.stroke();
-      }
-
-      // Round table in middle (council table)
-      c.fillStyle = "#3d1500"; c.beginPath(); c.ellipse(W/2, H * 0.58, W * 0.22, H * 0.14, 0, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = "#8b5e00"; c.lineWidth = 3; c.stroke();
-      // Chairs around table
-      for (let ci = 0; ci < 10; ci++) {
-        const ca = (ci / 10) * Math.PI * 2;
-        const cx = W/2 + Math.cos(ca) * W * 0.25;
-        const cy = H * 0.58 + Math.sin(ca) * H * 0.17;
-        c.font = "14px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(["🧙","🧚","🦄","🐉","🐱","👑","🤘","🤖","💀","🎴"][ci], cx, cy);
-      }
-      // Map/document on table
-      c.font = "22px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("📜", W/2, H * 0.58);
-      }
+      drawRoomInteractiveMarkers(c, "guilds", W, H, t, "#f59e0b");
       _drawRoomHero(c, rh, t);
     }
 
     function drawRoomDao(c, W, H, t, rh) {
-      c.fillStyle = "#0d0900"; c.fillRect(0, 0, W, H);
-      // Marble floor tiles
-      for (let ty = 0; ty < H; ty += 44) {
-        for (let tx = 0; tx < W; tx += 44) {
-          const shade = ((tx + ty) / 88) % 1;
-          c.fillStyle = `rgb(${Math.round(25 + shade * 8)},${Math.round(20 + shade * 5)},0)`;
-          c.fillRect(tx, ty, 44, 44);
-          c.strokeStyle = "rgba(180,140,0,0.15)"; c.lineWidth = 0.5; c.strokeRect(tx, ty, 44, 44);
-        }
-      }
-      // Gold veining
-      c.save(); c.globalAlpha = 0.08;
-      c.strokeStyle = "#fbbf24"; c.lineWidth = 1.5;
-      for (let vy = 0; vy < H; vy += 110) {
-        c.beginPath(); c.moveTo(0, vy); c.bezierCurveTo(W*0.3, vy+22, W*0.6, vy-14, W, vy+8); c.stroke();
-      }
-      c.restore();
-
-      // Grand vaulted ceiling (arches)
-      const archCount = 5;
-      for (let ai = 0; ai < archCount; ai++) {
-        const ax = (W / (archCount + 1)) * (ai + 1);
-        c.strokeStyle = "rgba(180,140,0,0.3)"; c.lineWidth = 2;
-        c.beginPath(); c.arc(ax, 0, H * 0.45, 0, Math.PI); c.stroke();
-      }
-
-      // Treasury vault back wall
-      c.fillStyle = "#1f1500"; c.fillRect(0, 0, W, H * 0.18);
-      c.fillStyle = "#2d1e00"; c.fillRect(W * 0.2, 0, W * 0.6, H * 0.18);
-
-      // Giant vault door (center back)
-      c.fillStyle = "#6b5000"; c.fillRect(W/2 - 50, 0, 100, H * 0.15);
-      // Vault door spokes
-      c.strokeStyle = "#d4a017"; c.lineWidth = 3;
-      const vaultCx = W/2, vaultCy = H * 0.075;
-      for (let sv = 0; sv < 8; sv++) {
-        const va = sv * Math.PI / 4 + t * 0.002;
-        c.beginPath(); c.moveTo(vaultCx, vaultCy); c.lineTo(vaultCx + Math.cos(va) * 38, vaultCy + Math.sin(va) * 38); c.stroke();
-      }
-      c.strokeStyle = "#d4a017"; c.lineWidth = 2;
-      c.beginPath(); c.arc(vaultCx, vaultCy, 38, 0, Math.PI * 2); c.stroke();
-      c.beginPath(); c.arc(vaultCx, vaultCy, 22, 0, Math.PI * 2); c.stroke();
-      c.fillStyle = "#8b6a00"; c.beginPath(); c.arc(vaultCx, vaultCy, 8, 0, Math.PI * 2); c.fill();
-
-      // Royal Gold Mine Treasury
-      const daoAsset = buildingAssets.dao;
-      if (daoAsset && (daoAsset.loaded || daoAsset.img.complete) && daoAsset.img.naturalWidth > 0) {
+      c.fillStyle = "#0d0b00";
+      c.fillRect(0, 0, W, H);
+      if (bankMapLoaded && bankMap.naturalWidth > 0) {
+        const fr = bankFrame(W, H);
         c.save();
-        const sc = 0.88;
-        const dw = Math.round(daoAsset.img.naturalWidth * sc);
-        const dh = Math.round(daoAsset.img.naturalHeight * sc);
-        c.drawImage(daoAsset.img, Math.round(W * 0.22 - dw/2), Math.round(H * 0.24), dw, dh);
+        c.imageSmoothingEnabled = true;
+        c.drawImage(bankMap, fr.x, fr.y, fr.dw, fr.dh);
         c.restore();
+        drawRoomExit(c, fr, "#fbbf24");
       }
-
-      // Gold coin piles (3 big piles)
-      const piles = [{ x: W * 0.2, y: H * 0.62 }, { x: W * 0.5, y: H * 0.65 }, { x: W * 0.8, y: H * 0.62 }];
-      for (const pile of piles) {
-        // Pile shadow
-        c.fillStyle = "rgba(0,0,0,0.5)"; c.beginPath(); c.ellipse(pile.x, pile.y + 14, 40, 12, 0, 0, Math.PI * 2); c.fill();
-        // Coin pile body
-        const coinGrd = c.createRadialGradient(pile.x - 10, pile.y - 10, 5, pile.x, pile.y, 38);
-        coinGrd.addColorStop(0, "#fbbf24"); coinGrd.addColorStop(0.6, "#d97706"); coinGrd.addColorStop(1, "#92400e");
-        c.fillStyle = coinGrd; c.beginPath(); c.ellipse(pile.x, pile.y, 38, 22, 0, 0, Math.PI * 2); c.fill();
-        // Individual coins stacked
-        for (let ci = 0; ci < 6; ci++) {
-          const cx2 = pile.x + (ci % 3 - 1) * 12;
-          const cy2 = pile.y - 14 - Math.floor(ci / 3) * 8;
-          c.fillStyle = "#fbbf24"; c.beginPath(); c.ellipse(cx2, cy2, 8, 3, 0, 0, Math.PI * 2); c.fill();
-          c.strokeStyle = "#d97706"; c.lineWidth = 0.5; c.stroke();
-        }
-      }
-
-      // Treasure chests
-      const chests = [{ x: W * 0.12, y: H * 0.5 }, { x: W * 0.88, y: H * 0.5 }];
-      for (const ch of chests) {
-        c.fillStyle = "#5d3b1a"; c.fillRect(ch.x - 24, ch.y - 16, 48, 32);
-        c.fillStyle = "#7a4e22"; c.fillRect(ch.x - 24, ch.y - 16, 48, 14);
-        c.strokeStyle = "#d4a017"; c.lineWidth = 1.5; c.strokeRect(ch.x - 24, ch.y - 16, 48, 32);
-        c.fillStyle = "#d4a017"; c.fillRect(ch.x - 2, ch.y - 2, 4, 4);
-        c.font = "10px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("🔒", ch.x, ch.y + 8);
-        const chestGlow = 0.3 + Math.sin(t * 0.005 + ch.x) * 0.2;
-        c.save(); c.globalAlpha = chestGlow; c.fillStyle = "#fbbf24"; c.beginPath(); c.arc(ch.x, ch.y, 30, 0, Math.PI * 2); c.fill(); c.restore();
-      }
-
-      // Floating DAO governance scrolls
-      for (let si = 0; si < 4; si++) {
-        const sa = t * 0.003 + si * 1.57;
-        const sx = W/2 + Math.cos(sa) * W * 0.28;
-        const sy = H * 0.4 + Math.sin(sa) * H * 0.12;
-        c.save(); c.globalAlpha = 0.7; c.font = "16px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(["📜","🗳️","🪙","⚖️"][si], sx, sy); c.restore();
-      }
-
-      // Stained glass windows (sides)
-      const winColors = ["#ef4444","#f97316","#fbbf24","#22c55e","#06b6d4","#6366f1"];
-      for (let wi = 0; wi < 3; wi++) {
-        const wx = W * 0.08 + wi * (W * 0.06);
-        const wy = H * 0.04;
-        c.fillStyle = winColors[wi % winColors.length]; c.save(); c.globalAlpha = 0.5;
-        c.beginPath(); c.arc(wx, wy + 20, 12, Math.PI, 0); c.rect(wx - 12, wy + 20, 24, 28); c.fill(); c.restore();
-        const wx2 = W - W * 0.08 - wi * (W * 0.06);
-        c.fillStyle = winColors[(wi + 3) % winColors.length]; c.save(); c.globalAlpha = 0.5;
-        c.beginPath(); c.arc(wx2, wy + 20, 12, Math.PI, 0); c.rect(wx2 - 12, wy + 20, 24, 28); c.fill(); c.restore();
-      }
-
-      // Hero
+      drawRoomInteractiveMarkers(c, "dao", W, H, t, "#fbbf24");
       _drawRoomHero(c, rh, t);
-
-      // Exit
-      c.fillStyle = "#0d0900";
-      c.beginPath(); c.arc(W/2, H, 28, Math.PI, 0); c.rect(W/2 - 28, H - 4, 56, 30); c.fill();
-      c.strokeStyle = "#fbbf24"; c.lineWidth = 2;
-      c.beginPath(); c.arc(W/2, H, 28, Math.PI, 0); c.stroke();
-      c.font = "bold 9px system-ui,sans-serif"; c.fillStyle = "#fbbf24"; c.textAlign = "center"; c.textBaseline = "top";
-      c.fillText("← EXIT", W/2, H - 28);
     }
 
     function drawRoomDnd(c, W, H, t, rh) {
-      c.fillStyle = "#060010"; c.fillRect(0, 0, W, H);
-      // Astral plane starfield
-      for (let si = 0; si < 180; si++) {
-        const sx = (si * 137.5) % W;
-        const sy = (si * 89.3 + 47) % H;
-        const sa = 0.3 + Math.sin(t * 0.008 + si * 0.4) * 0.5;
-        c.fillStyle = `rgba(255,255,255,${sa})`;
-        c.beginPath(); c.arc(sx, sy, si % 4 === 0 ? 1.5 : 0.8, 0, Math.PI * 2); c.fill();
-      }
-
-      // Nebula clouds
-      const nebulas = [
-        { x: W * 0.2, y: H * 0.3, color: "rgba(192,132,252,", r: 90 },
-        { x: W * 0.8, y: H * 0.6, color: "rgba(99,102,241,", r: 80 },
-        { x: W * 0.5, y: H * 0.5, color: "rgba(139,92,246,", r: 100 },
-      ];
-      for (const neb of nebulas) {
-        const nbGrd = c.createRadialGradient(neb.x, neb.y, 5, neb.x, neb.y, neb.r);
-        nbGrd.addColorStop(0, neb.color + "0.18)");
-        nbGrd.addColorStop(0.5, neb.color + "0.08)");
-        nbGrd.addColorStop(1, neb.color + "0)");
-        c.fillStyle = nbGrd; c.beginPath(); c.arc(neb.x, neb.y, neb.r, 0, Math.PI * 2); c.fill();
-      }
-
-      // Hex grid battlemap overlay
-      c.save(); c.globalAlpha = 0.18; c.strokeStyle = "#7c3aed"; c.lineWidth = 0.8;
-      const hexR = 24;
-      const hexW2 = hexR * Math.sqrt(3);
-      for (let row = -1; row < H / (hexR * 1.5) + 1; row++) {
-        for (let col = -1; col < W / hexW2 + 1; col++) {
-          const hx = col * hexW2 + (row % 2 === 0 ? 0 : hexW2 / 2);
-          const hy = row * hexR * 1.5;
-          c.beginPath();
-          for (let p = 0; p < 6; p++) {
-            const angle = Math.PI / 180 * (60 * p - 30);
-            const px = hx + hexR * Math.cos(angle), py = hy + hexR * Math.sin(angle);
-            if (p === 0) c.moveTo(px, py); else c.lineTo(px, py);
-          }
-          c.closePath(); c.stroke();
-        }
-      }
-      c.restore();
-
-      // Floating islands / platforms
-      const platforms = [
-        { x: W * 0.2, y: H * 0.45, w: 90, color: "#1e1030" },
-        { x: W * 0.8, y: H * 0.45, w: 90, color: "#1a0c2e" },
-        { x: W * 0.5, y: H * 0.3, w: 120, color: "#0e0a20" },
-      ];
-      for (const plat of platforms) {
-        c.fillStyle = plat.color; c.beginPath(); c.ellipse(plat.x, plat.y, plat.w/2, 18, 0, 0, Math.PI * 2); c.fill();
-        c.strokeStyle = "rgba(139,92,246,0.5)"; c.lineWidth = 1.5; c.stroke();
-        // Platform surface
-        c.fillStyle = "#2d1a4a"; c.fillRect(plat.x - plat.w/2 + 4, plat.y - 22, plat.w - 8, 22);
-        c.strokeStyle = "rgba(192,132,252,0.3)"; c.lineWidth = 1; c.strokeRect(plat.x - plat.w/2 + 4, plat.y - 22, plat.w - 8, 22);
-        // Platform glow
-        const platGrd = c.createRadialGradient(plat.x, plat.y + 20, 5, plat.x, plat.y + 20, 60);
-        platGrd.addColorStop(0, "rgba(139,92,246,0.25)"); platGrd.addColorStop(1, "rgba(0,0,0,0)");
-        c.fillStyle = platGrd; c.beginPath(); c.ellipse(plat.x, plat.y + 20, 60, 20, 0, 0, Math.PI * 2); c.fill();
-      }
-
-      // Miniature monsters on side platforms
-      const monsters = ["🧟","🦂"];
-      [platforms[0], platforms[1]].forEach((plat, mi) => {
-        c.font = "20px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        const mBob = Math.sin(t * 0.008 + mi * 1.2) * 4;
-        c.fillText(monsters[mi % monsters.length], plat.x, plat.y - 26 + mBob);
-      });
-
-      // Golden Dragon perched atop Rock Altar on center astral platform
-      const dndAsset = buildingAssets.dnd;
-      if (dndAsset && (dndAsset.loaded || dndAsset.img.complete) && dndAsset.img.naturalWidth > 0) {
+      c.fillStyle = "#06000d";
+      c.fillRect(0, 0, W, H);
+      if (alchemistMapLoaded && alchemistMap.naturalWidth > 0) {
+        const fr = alchemistFrame(W, H);
         c.save();
-        const sc = 0.88;
-        const dw = Math.round(dndAsset.img.naturalWidth * sc);
-        const dh = Math.round(dndAsset.img.naturalHeight * sc);
-        c.drawImage(dndAsset.img, Math.round(W * 0.5 - dw/2), Math.round(H * 0.30 - dh + 10), dw, dh);
+        c.imageSmoothingEnabled = true;
+        c.drawImage(alchemistMap, fr.x, fr.y, fr.dw, fr.dh);
         c.restore();
+        drawRoomExit(c, fr, "#c084fc");
       }
-
-      // Giant portal at center (spinning)
-      const portalRot = t * 0.004;
-      c.save(); c.translate(W/2, H * 0.55); c.rotate(portalRot);
-      c.strokeStyle = "rgba(192,132,252,0.7)"; c.lineWidth = 6;
-      c.beginPath(); c.arc(0, 0, 66, 0, Math.PI * 2); c.stroke();
-      c.strokeStyle = "rgba(139,92,246,0.4)"; c.lineWidth = 2;
-      c.beginPath(); c.arc(0, 0, 80, 0, Math.PI * 2); c.stroke();
-      // Runic marks
-      for (let ri = 0; ri < 8; ri++) {
-        const ra = (ri / 8) * Math.PI * 2;
-        c.fillStyle = "#e879f9"; c.font = "10px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(["ᚠ","ᚢ","ᚦ","ᚨ","ᚱ","ᚲ","ᚷ","ᚹ"][ri], Math.cos(ra) * 60, Math.sin(ra) * 60);
-      }
-      c.restore();
-      // Portal void
-      const vGrd = c.createRadialGradient(W/2, H * 0.55, 0, W/2, H * 0.55, 60);
-      vGrd.addColorStop(0, "rgba(5,0,20,0.96)"); vGrd.addColorStop(0.6, "rgba(88,28,135,0.6)"); vGrd.addColorStop(1, "rgba(0,0,0,0)");
-      c.fillStyle = vGrd; c.beginPath(); c.arc(W/2, H * 0.55, 60, 0, Math.PI * 2); c.fill();
-      c.font = "30px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-      c.fillText("🎲", W/2, H * 0.55 + Math.sin(t * 0.007) * 6);
-
-      // Floating dice around portal
-      const diceTypes = ["⚀","⚁","⚂","⚃","⚄","⚅"];
-      for (let di = 0; di < 6; di++) {
-        const da = t * 0.005 + di * 1.047;
-        const dr = 100;
-        const dx = W/2 + Math.cos(da) * dr;
-        const dy = H * 0.55 + Math.sin(da) * 55;
-        c.save(); c.globalAlpha = 0.8; c.font = "16px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(diceTypes[di], dx, dy); c.restore();
-      }
-
-      // Astral chains connecting platforms
-      c.save(); c.globalAlpha = 0.3; c.strokeStyle = "#7c3aed"; c.lineWidth = 1; c.setLineDash([4, 8]);
-      c.beginPath(); c.moveTo(platforms[0].x, platforms[0].y); c.lineTo(platforms[2].x, platforms[2].y); c.stroke();
-      c.beginPath(); c.moveTo(platforms[1].x, platforms[1].y); c.lineTo(platforms[2].x, platforms[2].y); c.stroke();
-      c.setLineDash([]); c.restore();
-
-      // Hero
+      drawRoomInteractiveMarkers(c, "dnd", W, H, t, "#c084fc");
       _drawRoomHero(c, rh, t);
-
-      // Exit
-      c.fillStyle = "#060010";
-      c.beginPath(); c.arc(W/2, H, 28, Math.PI, 0); c.rect(W/2 - 28, H - 4, 56, 30); c.fill();
-      c.strokeStyle = "#c084fc"; c.lineWidth = 2;
-      c.beginPath(); c.arc(W/2, H, 28, Math.PI, 0); c.stroke();
-      c.font = "bold 9px system-ui,sans-serif"; c.fillStyle = "#c084fc"; c.textAlign = "center"; c.textBaseline = "top";
-      c.fillText("← EXIT", W/2, H - 28);
     }
 
     function drawRoomBazaar(c, W, H, t, rh) {
-      c.fillStyle = "#000e08"; c.fillRect(0, 0, W, H);
-      // Cobblestone ground
-      for (let ty = H * 0.5; ty < H; ty += 30) {
-        for (let tx = 0; tx < W; tx += 40) {
-          c.fillStyle = `rgba(0,${20 + (tx/40 + ty/30) % 4 * 5},${10},1)`;
-          c.fillRect(tx, ty, 40, 30); c.strokeStyle = "rgba(0,0,0,0.3)"; c.lineWidth = 0.5; c.strokeRect(tx, ty, 40, 30);
-        }
-      }
-      // Open sky top half (evening glow)
-      const skyGrd = c.createLinearGradient(0, 0, 0, H * 0.5);
-      skyGrd.addColorStop(0, "#001a0d"); skyGrd.addColorStop(0.5, "#002b14"); skyGrd.addColorStop(1, "#004020");
-      c.fillStyle = skyGrd; c.fillRect(0, 0, W, H * 0.5);
-
-      // Stars in sky
-      for (let si = 0; si < 60; si++) {
-        const sx = (si * 200.5) % W;
-        const sy = (si * 77.3) % (H * 0.45);
-        c.fillStyle = `rgba(255,255,255,${0.3 + Math.sin(t * 0.01 + si) * 0.3})`;
-        c.beginPath(); c.arc(sx, sy, 0.8, 0, Math.PI * 2); c.fill();
-      }
-
-      // Moon
-      c.fillStyle = "#fefce8"; c.save(); c.globalAlpha = 0.9;
-      c.beginPath(); c.arc(W * 0.85, H * 0.12, 22, 0, Math.PI * 2); c.fill();
-      c.restore();
-      // Moon glow
-      const moonGrd = c.createRadialGradient(W * 0.85, H * 0.12, 5, W * 0.85, H * 0.12, 55);
-      moonGrd.addColorStop(0, "rgba(254,252,232,0.2)"); moonGrd.addColorStop(1, "rgba(0,0,0,0)");
-      c.fillStyle = moonGrd; c.beginPath(); c.arc(W * 0.85, H * 0.12, 55, 0, Math.PI * 2); c.fill();
-
-      // Grand Oracle Bazaar Trading Hall in background
-      const bazAsset = buildingAssets.bazaar;
-      if (bazAsset && (bazAsset.loaded || bazAsset.img.complete) && bazAsset.img.naturalWidth > 0) {
+      c.fillStyle = "#00100a";
+      c.fillRect(0, 0, W, H);
+      if (marketplaceMapLoaded && marketplaceMap.naturalWidth > 0) {
+        const fr = marketplaceFrame(W, H);
         c.save();
-        const sc = 0.76;
-        const bw = Math.round(bazAsset.img.naturalWidth * sc);
-        const bh = Math.round(bazAsset.img.naturalHeight * sc);
-        c.drawImage(bazAsset.img, Math.round(W * 0.5 - bw/2), Math.round(H * 0.12), bw, bh);
+        c.imageSmoothingEnabled = true;
+        c.drawImage(marketplaceMap, fr.x, fr.y, fr.dw, fr.dh);
         c.restore();
+        drawRoomExit(c, fr, "#10b981");
       }
-
-      // Market stalls (3 big ones)
-      const stalls = [
-        { x: W * 0.15, y: H * 0.38, color: "#065f46", name: "Cards" },
-        { x: W * 0.5, y: H * 0.35, color: "#7c3aed", name: "Spells" },
-        { x: W * 0.85, y: H * 0.38, color: "#b45309", name: "Relics" },
-      ];
-      for (const stall of stalls) {
-        // Stall frame
-        c.strokeStyle = "#5d3b1a"; c.lineWidth = 3;
-        c.beginPath(); c.moveTo(stall.x - 55, stall.y + 40); c.lineTo(stall.x - 55, stall.y - 30); c.stroke();
-        c.beginPath(); c.moveTo(stall.x + 55, stall.y + 40); c.lineTo(stall.x + 55, stall.y - 30); c.stroke();
-        c.beginPath(); c.moveTo(stall.x, stall.y + 40); c.lineTo(stall.x, stall.y - 50); c.stroke();
-        // Awning
-        const awningPoints = [[-55, -28], [-28, -44], [0, -52], [28, -44], [55, -28]];
-        c.fillStyle = stall.color;
-        c.beginPath(); c.moveTo(stall.x + awningPoints[0][0], stall.y + awningPoints[0][1]);
-        for (const [ax, ay] of awningPoints) { c.lineTo(stall.x + ax, stall.y + ay); }
-        c.lineTo(stall.x + 55, stall.y + 40); c.lineTo(stall.x - 55, stall.y + 40); c.closePath(); c.fill();
-        c.strokeStyle = "rgba(255,255,255,0.3)"; c.lineWidth = 1; c.stroke();
-        // Counter
-        c.fillStyle = "#5d3b1a"; c.fillRect(stall.x - 52, stall.y + 20, 104, 18);
-        // Stall name tag
-        c.fillStyle = "#fef3c7"; c.font = "bold 8px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(stall.name, stall.x, stall.y - 10);
-        // Stall items on counter
-        const stallItems = ["🎴","🃏","⚔️","💎","🌟","📜"];
-        for (let ii = 0; ii < 4; ii++) {
-          c.font = "11px sans-serif"; c.fillText(stallItems[(ii + stalls.indexOf(stall) * 2) % stallItems.length], stall.x - 30 + ii * 22, stall.y + 29);
-        }
-        // Stall merchant
-        const merchants = ["👺","🧙","🧚"];
-        const merchantTitles = ["Squee [Card Marketplace]", "Archmage Vron [Spells]", "Ariel [Booster Packs]"];
-        c.font = "24px sans-serif"; c.fillText(merchants[stalls.indexOf(stall)], stall.x, stall.y - 2);
-        c.font = "italic bold 10px 'Cinzel', serif"; c.fillStyle = "#fef3c7";
-        c.shadowColor = "#000"; c.shadowBlur = 4;
-        c.fillText(merchantTitles[stalls.indexOf(stall)], stall.x, stall.y - 22);
-        c.shadowBlur = 0;
-      }
-
-      // String lights connecting stalls
-      for (let li = 0; li < stalls.length - 1; li++) {
-        const s1 = stalls[li], s2 = stalls[li + 1];
-        const lightCount = 8;
-        for (let lj = 0; lj <= lightCount; lj++) {
-          const lt = lj / lightCount;
-          const lx = s1.x + (s2.x - s1.x) * lt;
-          const ly = s1.y + (s2.y - s1.y) * lt - Math.sin(lt * Math.PI) * 18;
-          const lGlow = 0.6 + Math.sin(t * 0.012 + lj * 0.8) * 0.4;
-          c.save(); c.globalAlpha = lGlow;
-          c.fillStyle = ["#f97316","#fbbf24","#22c55e","#38bdf8","#c084fc"][lj % 5];
-          c.beginPath(); c.arc(lx, ly, 4, 0, Math.PI * 2); c.fill(); c.restore();
-        }
-        c.strokeStyle = "rgba(255,255,255,0.15)"; c.lineWidth = 1; c.setLineDash([2, 4]);
-        c.beginPath(); c.moveTo(s1.x, s1.y - 30); c.quadraticCurveTo((s1.x + s2.x) / 2, (s1.y + s2.y) / 2 - 40, s2.x, s2.y - 30); c.stroke();
-        c.setLineDash([]);
-      }
-
-      // Floating oracle card display (center)
-      const cardAng = t * 0.003;
-      const featuredCards = ["🌙","⭐","🌊","🔥","🌿","⚡","💜"];
-      for (let ci = 0; ci < 7; ci++) {
-        const ca = cardAng + ci * (Math.PI * 2 / 7);
-        const cr = Math.min(W,H) * 0.28;
-        const cx2 = W/2 + Math.cos(ca) * cr;
-        const cy2 = H * 0.42 + Math.sin(ca) * cr * 0.4;
-        c.save(); c.globalAlpha = 0.65 + Math.sin(t * 0.006 + ci) * 0.3;
-        c.font = "16px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(featuredCards[ci], cx2, cy2); c.restore();
-      }
-
-      // Scrying crystal ball center
-      const crystGrd = c.createRadialGradient(W/2 - 8, H * 0.42 - 8, 4, W/2, H * 0.42, 30);
-      crystGrd.addColorStop(0, "rgba(255,255,255,0.9)"); crystGrd.addColorStop(0.4, "rgba(16,185,129,0.6)"); crystGrd.addColorStop(1, "rgba(0,20,10,0.9)");
-      c.fillStyle = crystGrd; c.beginPath(); c.arc(W/2, H * 0.42, 30, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = "#6ee7b7"; c.lineWidth = 2; c.stroke();
-      c.save(); c.globalAlpha = 0.8; c.font = "20px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-      c.fillText("🔮", W/2, H * 0.42); c.restore();
-
-      // Hero
+      drawRoomInteractiveMarkers(c, "bazaar", W, H, t, "#10b981");
       _drawRoomHero(c, rh, t);
-
-      // Exit
-      c.fillStyle = "#000e08";
-      c.beginPath(); c.arc(W/2, H - 4, 28, Math.PI, 0); c.rect(W/2 - 28, H - 4, 56, 30); c.fill();
-      c.strokeStyle = "#10b981"; c.lineWidth = 2;
-      c.beginPath(); c.arc(W/2, H - 4, 28, Math.PI, 0); c.stroke();
-      c.font = "bold 9px system-ui,sans-serif"; c.fillStyle = "#10b981"; c.textAlign = "center"; c.textBaseline = "top";
-      c.fillText("← EXIT", W/2, H - 32);
     }
 
     function drawRoomMirror(c, W, H, t, rh) {
-      // 1. Cosmic Void / Night Sky background
-      c.fillStyle = "#07060e";
+      c.fillStyle = "#0d0008";
       c.fillRect(0, 0, W, H);
-      for (let i = 0; i < 28; i++) {
-        const sx = ((i * 137.5) % W);
-        const sy = ((i * 89.3) % H);
-        const sa = 0.25 + Math.sin(t * 0.003 + i) * 0.25;
-        c.fillStyle = `rgba(180, 195, 255, ${sa})`;
-        c.beginPath(); c.arc(sx, sy, 0.8, 0, Math.PI * 2); c.fill();
-      }
-
-      // 2. Star Dragon Tower Foyer (ripped from Lunar 2: Eternal Blue Complete)
-      const foyer = roomAssets.mirrorFoyer;
-      const fScale = Math.min((W * 0.90) / 352, (H * 0.90) / 319, 1.85);
-      const fw = Math.round(352 * fScale);
-      const fh = Math.round(319 * fScale);
-      const fx = Math.round((W - fw) / 2);
-      const fy = Math.round((H - fh) / 2);
-
-      // Ambient radial glow beneath foyer
-      const fGrd = c.createRadialGradient(W / 2, H / 2, fw * 0.2, W / 2, H / 2, fw * 0.62);
-      fGrd.addColorStop(0, "rgba(79, 70, 229, 0.25)");
-      fGrd.addColorStop(0.7, "rgba(30, 27, 75, 0.15)");
-      fGrd.addColorStop(1, "rgba(0, 0, 0, 0)");
-      c.fillStyle = fGrd;
-      c.beginPath(); c.ellipse(W / 2, H / 2, fw * 0.62, fh * 0.58, 0, 0, Math.PI * 2); c.fill();
-
-      // Render the authentic Lunar 2 Foyer
-      if (foyer && (foyer.loaded || foyer.img.complete) && foyer.img.naturalWidth > 0) {
+      if (meditationMapLoaded && meditationMap.naturalWidth > 0) {
+        const fr = meditationFrame(W, H);
         c.save();
-        c.imageSmoothingEnabled = false; // crisp authentic pixel art
-        c.drawImage(foyer.img, fx, fy, fw, fh);
+        c.imageSmoothingEnabled = true;
+        c.drawImage(meditationMap, fr.x, fr.y, fr.dw, fr.dh);
         c.restore();
+        drawRoomExit(c, fr, "#f472b6");
       }
-
-      // 3. Grand Mystic Mirror Obelisk (mounted gracefully on the northern dais before archway)
-      const mirrorW = Math.round(72 * (fScale / 1.5));
-      const mirrorH = Math.round(112 * (fScale / 1.5));
-      const mx = W / 2;
-      const my = fy + Math.round(fh * 0.33);
-
-      // Obelisk pedestal shadow
-      c.fillStyle = "rgba(0,0,0,0.55)";
-      c.beginPath();
-      c.ellipse(mx, my + mirrorH / 2 + 4, mirrorW * 0.65, 12, 0, 0, Math.PI * 2);
-      c.fill();
-
-      // Mirror Stone Frame (ornate arch)
-      c.fillStyle = "#1e1329";
-      c.beginPath();
-      c.arc(mx, my - 8, mirrorW / 2 + 8, Math.PI, 0);
-      c.rect(mx - mirrorW / 2 - 8, my - 8, mirrorW + 16, mirrorH / 2 + 8);
-      c.fill();
-      c.strokeStyle = "#fbbf24";
-      c.lineWidth = 2.5;
-      c.beginPath();
-      c.arc(mx, my - 8, mirrorW / 2 + 8, Math.PI, 0);
-      c.rect(mx - mirrorW / 2 - 8, my - 8, mirrorW + 16, mirrorH / 2 + 8);
-      c.stroke();
-
-      // Lifestream / Astral Mirror Glass
-      const glassGrd = c.createRadialGradient(mx, my, 4, mx, my, mirrorW / 2);
-      glassGrd.addColorStop(0, "rgba(244, 114, 182, 0.9)");
-      glassGrd.addColorStop(0.45, "rgba(139, 92, 246, 0.6)");
-      glassGrd.addColorStop(1, "rgba(15, 23, 42, 0.95)");
-      c.fillStyle = glassGrd;
-      c.beginPath();
-      c.arc(mx, my - 8, mirrorW / 2, Math.PI, 0);
-      c.rect(mx - mirrorW / 2, my - 8, mirrorW, mirrorH / 2);
-      c.fill();
-
-      // Mirror reflection: Player avatar live reflection inside glass
-      c.save();
-      c.globalAlpha = 0.88 + Math.sin(t * 0.005) * 0.12;
-      drawCharacterAvatar(c, hero.avatar, mx, my + 8);
-      c.restore();
-
-      // Floating mirror sparkles
-      c.font = "14px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-      c.fillText("✨", mx - mirrorW / 2 - 12, my - 16 + Math.sin(t * 0.006) * 4);
-      c.fillText("✨", mx + mirrorW / 2 + 12, my - 8 + Math.sin(t * 0.006 + 1.2) * 4);
-
-      c.font = "bold 10px 'Cinzel', serif"; c.fillStyle = "#fef08a"; c.textAlign = "center";
-      c.shadowColor = "#000"; c.shadowBlur = 4;
-      c.fillText("MYSTIC MIRROR", mx, my - mirrorW / 2 - 20);
-      c.shadowBlur = 0;
-
-      // 4. Left Alcove: Astral Wardrobe
-      const wx = fx + Math.round(fw * 0.18);
-      const wy = fy + Math.round(fh * 0.44);
-      c.fillStyle = "rgba(0,0,0,0.4)"; c.beginPath(); c.ellipse(wx, wy + 26, 24, 8, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = "#3b1e08"; c.fillRect(wx - 22, wy - 26, 44, 52);
-      c.strokeStyle = "#d4af37"; c.lineWidth = 1.5; c.strokeRect(wx - 22, wy - 26, 44, 52);
-      c.font = "18px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-      c.fillText("👗", wx, wy);
-      c.font = "bold 8.5px sans-serif"; c.fillStyle = "#f472b6";
-      c.fillText("Wardrobe", wx, wy + 35);
-
-      // 5. Right Alcove: Cosmetic Vanity
-      const vx = fx + Math.round(fw * 0.82);
-      const vy = fy + Math.round(fh * 0.44);
-      c.fillStyle = "rgba(0,0,0,0.4)"; c.beginPath(); c.ellipse(vx, vy + 18, 26, 8, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = "#3b1e08"; c.fillRect(vx - 24, wy - 14, 48, 32);
-      c.strokeStyle = "#d4af37"; c.lineWidth = 1.5; c.strokeRect(vx - 24, wy - 14, 48, 32);
-      c.font = "16px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-      c.fillText("🎨", vx - 8, wy + 2); c.fillText("✨", vx + 10, wy + 2);
-      c.font = "bold 8.5px sans-serif"; c.fillStyle = "#f472b6";
-      c.fillText("Vanity Table", vx, wy + 28);
-
-      // 6. Floating avatar presets around foyer chamber
-      const presets = ["🧙","🧚","🦄","🐉","👑","🤘","🤖","💀","🐱"];
-      for (let pi = 0; pi < presets.length; pi++) {
-        const pa = (pi / presets.length) * Math.PI * 2 + t * 0.001;
-        const prX = fw * 0.28;
-        const prY = fh * 0.20;
-        const px = W / 2 + Math.cos(pa) * prX;
-        const py = fy + Math.round(fh * 0.52) + Math.sin(pa) * prY;
-        c.save(); c.globalAlpha = 0.45 + Math.sin(t * 0.005 + pi) * 0.25;
-        c.font = "13px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(presets[pi], px, py);
-        c.restore();
-      }
-
-      // 7. Ambient rising stardust
-      for (let si = 0; si < 12; si++) {
-        const sx = fx + Math.round(fw * 0.25) + ((si * 43) % Math.round(fw * 0.5));
-        const sy = fy + Math.round(fh * 0.35) + (((t * 0.04 + si * 28) % Math.round(fh * 0.45)));
-        c.fillStyle = `rgba(244, 114, 182, ${0.25 + Math.sin(t * 0.004 + si) * 0.2})`;
-        c.beginPath(); c.arc(sx, sy, 1.2, 0, Math.PI * 2); c.fill();
-      }
-
-      // 8. Hero
+      drawRoomInteractiveMarkers(c, "mirror", W, H, t, "#f472b6");
       _drawRoomHero(c, rh, t);
-
-      // 9. Exit arch at south threshold
-      const ex = W / 2;
-      const ey = fy + fh - Math.round(22 * fScale);
-      c.fillStyle = "rgba(10, 8, 16, 0.85)";
-      c.beginPath(); c.arc(ex, ey, 20, Math.PI, 0); c.rect(ex - 20, ey, 40, 12); c.fill();
-      c.strokeStyle = "#f472b6"; c.lineWidth = 1.5;
-      c.beginPath(); c.arc(ex, ey, 20, Math.PI, 0); c.stroke();
-      c.font = "bold 8px system-ui,sans-serif"; c.fillStyle = "#f472b6"; c.textAlign = "center"; c.textBaseline = "top";
-      c.fillText("← EXIT", ex, ey - 18);
     }
 
     function _drawRoomHero(c, rh, t) {
@@ -1429,10 +1041,10 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
 
     function getRoomInteractions(roomId, W, H) {
       const go = (path) => { if (typeof onNavigate === "function") onNavigate(path); else window.MTG && window.MTG.go && window.MTG.go(path); };
+      const fr = getRoomFrame(roomId, W, H);
 
       switch (roomId) {
         case "arena": {
-          const fr = colosseumMapLoaded ? colosseumFrame(W, H) : { x: 0, y: 0, dw: W, dh: H };
           return [
             {
               id: "arena_tables",
@@ -1440,8 +1052,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Browse Live & Open Tables",
               icon: "🏰",
               promptText: "Open Tables",
-              x: fr.x + fr.dw * 0.5,
-              y: fr.y + fr.dh * 0.4,
+              x: fr.x + fr.dw * 0.50,
+              y: fr.y + fr.dh * 0.40,
               radius: 70,
               onInteract() {
                 if (window.MTG && window.MTG.openTablesModal) window.MTG.openTablesModal();
@@ -1453,8 +1065,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Quick Match vs Bot",
               icon: "🤖",
               promptText: "Duel Bot",
-              x: fr.x + fr.dw * 0.5,
-              y: fr.y + fr.dh * 0.7,
+              x: fr.x + fr.dw * 0.50,
+              y: fr.y + fr.dh * 0.65,
               radius: 70,
               onInteract() {
                 sessionStorage.setItem("mtg-pending-create", JSON.stringify({
@@ -1479,8 +1091,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Deck Forge & Saved Decks",
               icon: "📖",
               promptText: "Forge Decks",
-              x: W * 0.5,
-              y: H * 0.60,
+              x: fr.x + fr.dw * 0.50,
+              y: fr.y + fr.dh * 0.55,
               radius: 80,
               onInteract() {
                 if (window.MTG && window.MTG.openBuilderModal) window.MTG.openBuilderModal();
@@ -1492,8 +1104,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Search 36,000+ Multiverse Cards",
               icon: "🔮",
               promptText: "Search Cards",
-              x: W * 0.5 - 79,
-              y: H * 0.57,
+              x: fr.x + fr.dw * 0.32,
+              y: fr.y + fr.dh * 0.45,
               radius: 80,
               onInteract() {
                 if (window.MTG && window.MTG.openBuilderModal) window.MTG.openBuilderModal({ browse: true });
@@ -1509,9 +1121,9 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Card Marketplace · Buy & Sell Singles",
               icon: "👺",
               promptText: "Open Marketplace",
-              x: W * 0.15,
-              y: H * 0.45,
-              radius: 85,
+              x: fr.x + fr.dw * 0.28,
+              y: fr.y + fr.dh * 0.52,
+              radius: 80,
               onInteract() {
                 if (window.MTG && window.MTG.openMarketplaceModal) window.MTG.openMarketplaceModal();
               }
@@ -1522,9 +1134,9 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Multiverse Oracle Catalog",
               icon: "🧙",
               promptText: "Browse Catalog",
-              x: W * 0.5,
-              y: H * 0.42,
-              radius: 85,
+              x: fr.x + fr.dw * 0.50,
+              y: fr.y + fr.dh * 0.40,
+              radius: 80,
               onInteract() {
                 if (window.MTG && window.MTG.openBuilderModal) window.MTG.openBuilderModal({ browse: true });
               }
@@ -1535,18 +1147,23 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Booster Packs & Limited Draft",
               icon: "🧚",
               promptText: "Booster Packs",
-              x: W * 0.85,
-              y: H * 0.45,
-              radius: 85,
+              x: fr.x + fr.dw * 0.74,
+              y: fr.y + fr.dh * 0.52,
+              radius: 80,
               onInteract() {
-                const packEl = roomOverlay.querySelector("#pack-machine");
-                if (packEl) packEl.scrollIntoView({ behavior: "smooth" });
+                const panel = roomOverlay.querySelector("#dfk-room-panel");
+                if (panel) {
+                  panel.hidden = false;
+                  const toggleBtn = roomOverlay.querySelector("#dfk-room-panel-toggle");
+                  if (toggleBtn) toggleBtn.classList.add("gold");
+                  const packEl = panel.querySelector("#pack-machine");
+                  if (packEl) packEl.scrollIntoView({ behavior: "smooth" });
+                }
               }
             }
           ];
 
-        case "guilds": {
-          const fr = tavernInteriorLoaded ? tavernFrame(W, H) : { x: 0, y: 0, dw: W, dh: H };
+        case "guilds":
           return [
             {
               id: "guilds_table",
@@ -1567,7 +1184,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Prize leagues and seasonal brackets",
               icon: "🔥",
               promptText: "Prize Leagues",
-              x: fr.x + fr.dw * 0.86,
+              x: fr.x + fr.dw * 0.82,
               y: fr.y + fr.dh * 0.46,
               radius: 64,
               onInteract() {
@@ -1575,7 +1192,6 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               }
             }
           ];
-        }
 
         case "dao":
           return [
@@ -1585,9 +1201,9 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Royal Treasury Governance & Proposals",
               icon: "🏛️",
               promptText: "DAO Governance",
-              x: W * 0.5,
-              y: H * 0.18,
-              radius: 85,
+              x: fr.x + fr.dw * 0.50,
+              y: fr.y + fr.dh * 0.35,
+              radius: 80,
               onInteract() {
                 if (window.MTG && window.MTG.openDaoModal) window.MTG.openDaoModal();
               }
@@ -1598,8 +1214,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Claim Free Daily Wager Gold",
               icon: "💧",
               promptText: "Claim Gold",
-              x: W * 0.5,
-              y: H * 0.65,
+              x: fr.x + fr.dw * 0.28,
+              y: fr.y + fr.dh * 0.58,
               radius: 80,
               async onInteract() {
                 try {
@@ -1617,9 +1233,9 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "2D D&D Battlemaps & Virtual Tabletop",
               icon: "🐉",
               promptText: "Open Battlemap",
-              x: W * 0.5,
-              y: H * 0.55,
-              radius: 85,
+              x: fr.x + fr.dw * 0.50,
+              y: fr.y + fr.dh * 0.45,
+              radius: 80,
               onInteract() {
                 if (window.MTG && window.MTG.openDndModal) window.MTG.openDndModal({});
               }
@@ -1630,8 +1246,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Roll Fate Polyhedral d20",
               icon: "🎲",
               promptText: "Roll d20",
-              x: W * 0.2,
-              y: H * 0.45,
+              x: fr.x + fr.dw * 0.72,
+              y: fr.y + fr.dh * 0.58,
               radius: 80,
               onInteract() {
                 const roll = Math.ceil(Math.random() * 20);
@@ -1651,9 +1267,9 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Planeswalker Reflection & Persona",
               icon: "🪞",
               promptText: "Character Sheet",
-              x: W * 0.5,
-              y: H * 0.38,
-              radius: 85,
+              x: fr.x + fr.dw * 0.50,
+              y: fr.y + fr.dh * 0.38,
+              radius: 80,
               onInteract() {
                 if (typeof onOpenSheet === "function") onOpenSheet();
                 else { const d = document.getElementById("dfk-sheet-drawer"); if (d) d.hidden = false; }
@@ -1665,8 +1281,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Attire & Character Customization",
               icon: "👗",
               promptText: "Wardrobe",
-              x: W * 0.20,
-              y: H * 0.46,
+              x: fr.x + fr.dw * 0.25,
+              y: fr.y + fr.dh * 0.55,
               radius: 80,
               onInteract() {
                 if (typeof onOpenSheet === "function") onOpenSheet();
@@ -1679,8 +1295,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               subtitle: "Colors & Multiverse Themes",
               icon: "🎨",
               promptText: "Vanity Table",
-              x: W * 0.80,
-              y: H * 0.46,
+              x: fr.x + fr.dw * 0.75,
+              y: fr.y + fr.dh * 0.55,
               radius: 80,
               onInteract() {
                 if (typeof onOpenSheet === "function") onOpenSheet();
@@ -1698,9 +1314,11 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const def = ROOM_DEFS[currentRoom];
       if (!def) { promptEl.hidden = true; return; }
 
-      // Check exit arch proximity first
-      const distExit = Math.hypot(roomHero.x - viewW * 0.5, roomHero.y - viewH);
-      if (distExit < 70) {
+      const fr = getRoomFrame(currentRoom, viewW, viewH);
+      const exitX = fr.x + fr.dw * 0.5;
+      const exitY = fr.y + fr.dh * 0.92;
+      const distExit = Math.hypot(roomHero.x - exitX, roomHero.y - exitY);
+      if (distExit < 65) {
         roomNearestNpc = {
           name: "Portal Exit",
           subtitle: `Return to Overworld (${landmarks.find(l => l.id === currentRoom)?.name || "Sanctum"})`,
@@ -1795,7 +1413,10 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           roomOverlay.hidden = true;
           playerCardEl.hidden = false;
           topNavHud.hidden = false;
+          bottomDockEl.hidden = false;
           hotbarEl.hidden = false;
+          ffxiChatEl.hidden = false;
+          renderChatWindow();
           promptEl.hidden = true;
           dialogEl.hidden = true;
           minimapEl.hidden = false;
@@ -1822,32 +1443,23 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           minimapEl.hidden = true;
           promptEl.hidden = true;
           dialogEl.hidden = true;
+          playerCardEl.hidden = true;
+          topNavHud.hidden = true;
+          bottomDockEl.hidden = true;
+          hotbarEl.hidden = true;
+          ffxiChatEl.hidden = true;
 
           // Setup room hero spawn (doorway bottom center)
-          if (roomId === "mirror") {
-            const fScale = Math.min((viewW * 0.90) / 352, (viewH * 0.90) / 319, 1.85);
-            const fh = Math.round(319 * fScale);
-            const fy = Math.round((viewH - fh) / 2);
-            roomHero.x = Math.round(viewW * 0.5);
-            roomHero.y = fy + fh - Math.round(36 * fScale);
-          } else if (roomId === "arena") {
-            const fr = colosseumFrame(viewW, viewH);
-            roomHero.x = Math.round(fr.x + fr.dw * 0.5);
-            roomHero.y = Math.round(fr.y + fr.dh * 0.72);
-          } else if (roomId === "guilds") {
-            const fr = tavernFrame(viewW, viewH);
-            roomHero.x = Math.round(fr.x + fr.dw * 0.28);
-            roomHero.y = Math.round(fr.y + fr.dh * 0.62);
-          } else {
-            roomHero.x = Math.round(viewW * 0.5);
-            roomHero.y = Math.round(viewH * 0.84);
-          }
+          const fr = getRoomFrame(roomId, viewW, viewH);
+          roomHero.x = Math.round(fr.x + fr.dw * 0.5);
+          roomHero.y = Math.round(fr.y + fr.dh * 0.82);
           roomHero.targetX = null; roomHero.targetY = null; roomHero.isMoving = false;
           roomParticles = [];
           roomAnimTick = 0;
 
           // Build room overlay UI
           buildRoomOverlay(roomId, def);
+          if (window.MTG?.bringToFront) window.MTG.bringToFront(roomOverlay);
           roomOverlay.hidden = false;
         }
 
@@ -1865,12 +1477,12 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
     function buildRoomOverlay(roomId, def) {
       // Panel along the right side with Diablo 2 / WoW stone styling
       roomOverlay.innerHTML = `
-        <div class="dfk-room-panel" id="dfk-room-panel" style="border-color:${def.color}">
+        <div class="dfk-room-panel" id="dfk-room-panel" style="border-color:${def.color}" hidden>
           <div class="dfk-room-panel-header" style="border-color:${def.color}80;color:${def.color}">
             <span class="dfk-room-panel-icon">${def.icon}</span>
             <span class="dfk-room-panel-title">${def.name}</span>
-            <button type="button" class="btn small ghost dfk-room-exit-btn" id="dfk-room-exit-btn" title="Exit to Overworld">
-              🗺️ Exit [Esc]
+            <button type="button" class="btn small ghost dfk-room-exit-btn" id="dfk-room-exit-btn" title="Close Panel">
+              ✖️ Close
             </button>
           </div>
           <div class="dfk-room-panel-body" id="dfk-room-panel-body">
@@ -1884,14 +1496,32 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             <span>⚡ <span id="room-mp">${hero.mp}/${hero.maxMp}</span></span>
             <span>🪙 <span id="room-gold">${goldBalance.toLocaleString()}</span></span>
           </div>
+          <button type="button" class="btn small ghost" id="dfk-room-panel-toggle" style="font-size:11px;padding:3px 8px;margin-left:6px" title="Toggle Quick Actions Panel">
+            ⚡ Menu
+          </button>
           <button type="button" class="btn small ghost" id="dfk-room-hud-return" style="font-size:11px;padding:3px 8px;margin-left:6px" title="Return to Overworld">
             🗺️ Return [Esc]
           </button>
         </div>
       `;
 
+      const panel = roomOverlay.querySelector("#dfk-room-panel");
+      const toggleBtn = roomOverlay.querySelector("#dfk-room-panel-toggle");
+      if (toggleBtn && panel) {
+        toggleBtn.onclick = () => {
+          panel.hidden = !panel.hidden;
+          toggleBtn.classList.toggle("gold", !panel.hidden);
+        };
+      }
+
       const exitBtn = roomOverlay.querySelector("#dfk-room-exit-btn");
-      if (exitBtn) { exitBtn.onclick = () => transitionToRoom("overworld"); }
+      if (exitBtn && panel) {
+        exitBtn.onclick = () => {
+          panel.hidden = true;
+          if (toggleBtn) toggleBtn.classList.remove("gold");
+        };
+      }
+
       const hudReturn = roomOverlay.querySelector("#dfk-room-hud-return");
       if (hudReturn) { hudReturn.onclick = () => transitionToRoom("overworld"); }
 
@@ -2320,7 +1950,13 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               </div>
               <button class="btn gold small" id="quest-claim-btn" ${daily.claimed ? "disabled" : ""}>${daily.claimed ? "✓ Done" : "Claim"}</button>
             </div>
-          </div>`;
+            <button class="btn small ghost" id="quest-open-tab" style="width:100%">📜 Open full Quest Log</button>`;
+        const openTab = el.querySelector("#quest-open-tab");
+        if (openTab) {
+          openTab.onclick = () => {
+            if (window.MTG.openInventoryModal) window.MTG.openInventoryModal({ tab: "quests" });
+          };
+        }
         const claimBtn = el.querySelector("#quest-claim-btn");
         if (claimBtn) claimBtn.onclick = async () => {
           try {
@@ -2476,6 +2112,35 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       }
     }
 
+    function toggleGuildsModal() {
+      const m = document.getElementById("modal");
+      if (m && !m.hidden && m.querySelector("#guilds-root")) {
+        if (window.MTG && window.MTG.closeModal) window.MTG.closeModal();
+      } else {
+        if (window.MTG && window.MTG.openGuildsModal) window.MTG.openGuildsModal();
+      }
+    }
+
+    function toggleDaoModal() {
+      const m = document.getElementById("modal");
+      if (m && !m.hidden && m.querySelector("#dao-root")) {
+        if (window.MTG && window.MTG.closeModal) window.MTG.closeModal();
+      } else {
+        if (window.MTG && window.MTG.openDaoModal) window.MTG.openDaoModal();
+      }
+    }
+
+    function toggleDndModal() {
+      const ol = document.getElementById("dnd-full-overlay");
+      if (ol) {
+        const closeBtn = document.getElementById("dnd-overlay-close");
+        if (closeBtn) closeBtn.click();
+        else ol.remove();
+      } else {
+        if (window.MTG && window.MTG.openDndModal) window.MTG.openDndModal({});
+      }
+    }
+
     function renderPlayerCard() {
       const u = window.MTG && window.MTG.getCachedUser && window.MTG.getCachedUser();
       const hasWallet = !!(u && u.walletAddress);
@@ -2578,22 +2243,25 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const u = window.MTG && window.MTG.getCachedUser && window.MTG.getCachedUser();
       const sfxOn = !!(window.MTG_SFX && window.MTG_SFX.enabled);
       const bgmOn = !!(window.MTG_BGM && window.MTG_BGM.enabled);
+      const walletIcon = u?.walletAddress
+        ? (u.walletChain === "solana" ? "👻" : "🦊")
+        : "👛";
 
       topNavHud.innerHTML = `
-        <button type="button" class="dfk-nav-pill ${sfxOn ? 'active' : ''}" id="btn-dfk-sfx" title="Toggle Sound Effects">
-          ${sfxOn ? "🔔 Sounds" : "🔕 Muted"}
+        <button type="button" class="dfk-nav-pill ${sfxOn ? 'active' : ''}" id="btn-dfk-sfx" title="Toggle Sound Effects (${sfxOn ? 'On' : 'Muted'})">
+          ${sfxOn ? "🔔" : "🔕"}
         </button>
-        <button type="button" class="dfk-nav-pill ${bgmOn ? 'active' : ''}" id="btn-dfk-music" title="BGM Whimsical Music Playlist">
-          ${bgmOn ? "🎵 Music" : "🔇 Music Off"}
+        <button type="button" class="dfk-nav-pill ${bgmOn ? 'active' : ''}" id="btn-dfk-music" title="Music Playlist (${bgmOn ? 'Playing' : 'Off'})">
+          ${bgmOn ? "🎵" : "🔇"}
         </button>
         <button type="button" class="dfk-nav-pill" id="btn-dfk-skin" title="Switch Multiverse Visual Theme">
-          🎨 Theme
+          🎨
         </button>
-        <button type="button" class="dfk-nav-pill" id="btn-dfk-top-web3" title="${u?.walletAddress ? `Connected (${u.walletChain || 'ethereum'}): ${u.walletAddress}` : 'Log in with an Ethereum wallet on Sepolia and sign a test message'}">
-          ${u?.walletAddress ? `${window.MTG?.loginIcon || ""}${u.walletAddress.slice(0, 6)}…` : `${window.MTG?.loginIcon || ""}Login`}
+        <button type="button" class="dfk-nav-pill" id="btn-dfk-top-web3" title="${u?.walletAddress ? `Connected (${u.walletChain || 'ethereum'}): ${u.walletAddress}` : 'Log in with Wallet'}">
+          ${walletIcon}
         </button>
         <button type="button" class="dfk-nav-pill" id="btn-dfk-fs" title="Toggle Fullscreen">
-          ⛶ Fullscreen
+          ⛶
         </button>
       `;
 
@@ -2701,7 +2369,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             return;
           }
           topW3.disabled = true;
-          topW3.textContent = "👻 Opening…";
+          topW3.textContent = "⏳";
           try {
             if (window.MTG && window.MTG.connectPhantom) {
               await window.MTG.connectPhantom(window.MTG_SECOND, "ethereum");
@@ -2744,27 +2412,27 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           <div class="d2-center-dock">
             <!-- Spells & Combat Action Bar [1-4, E] -->
             <div class="d2-slot-group spells-group">
-              <button type="button" class="d2-action-btn ${hero.activeSpell === "fireball" ? "active" : ""}" data-spell="fireball" title="🔥 Fireball (Hotkey: 1)">
+              <button type="button" class="d2-action-btn ${hero.activeSpell === "fireball" ? "active" : ""}" data-spell="fireball">
                 <span class="d2-action-icon">🔥</span>
                 <span class="d2-action-name">Fireball</span>
                 <span class="d2-action-key">1</span>
               </button>
-              <button type="button" class="d2-action-btn ${hero.activeSpell === "frost" ? "active" : ""}" data-spell="frost" title="❄️ Frost Nova (Hotkey: 2)">
+              <button type="button" class="d2-action-btn ${hero.activeSpell === "frost" ? "active" : ""}" data-spell="frost">
                 <span class="d2-action-icon">❄️</span>
                 <span class="d2-action-name">Frost</span>
                 <span class="d2-action-key">2</span>
               </button>
-              <button type="button" class="d2-action-btn ${hero.activeSpell === "sparkle" ? "active" : ""}" data-spell="sparkle" title="✨ Sparkle (Hotkey: 3)">
+              <button type="button" class="d2-action-btn ${hero.activeSpell === "sparkle" ? "active" : ""}" data-spell="sparkle">
                 <span class="d2-action-icon">✨</span>
                 <span class="d2-action-name">Sparkle</span>
                 <span class="d2-action-key">3</span>
               </button>
-              <button type="button" class="d2-action-btn ${hero.activeSpell === "heal" ? "active" : ""}" data-spell="heal" title="💖 Heal (Hotkey: 4)">
+              <button type="button" class="d2-action-btn ${hero.activeSpell === "heal" ? "active" : ""}" data-spell="heal">
                 <span class="d2-action-icon">💖</span>
                 <span class="d2-action-name">Heal</span>
                 <span class="d2-action-key">4</span>
               </button>
-              <button type="button" class="d2-action-btn interact-btn" id="btn-dfk-interact" title="💬 Action / Interact (Hotkey: Spacebar)">
+              <button type="button" class="d2-action-btn interact-btn" id="btn-dfk-interact">
                 <span class="d2-action-icon">💬</span>
                 <span class="d2-action-name">Action</span>
                 <span class="d2-action-key">Space</span>
@@ -2772,33 +2440,29 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             </div>
 
             <!-- Center Emblem Divider -->
-            <div class="d2-center-crest" title="Planeswalker Sanctum">
+            <div class="d2-center-crest">
               <span class="d2-crest-icon">✦</span>
             </div>
 
             <!-- Section Navigation (Opens Game Inventory Windows) -->
             <div class="d2-slot-group nav-group">
-              <button type="button" class="d2-nav-btn" id="btn-hud-tables" data-warp="tables" title="🏰 Grand Arena Tables (Overlay Window) [T]">
+              <button type="button" class="d2-nav-btn" id="btn-hud-tables" data-warp="tables">
                 <span class="d2-nav-icon">🏰</span>
                 <span class="d2-nav-label">Tables</span>
               </button>
-              <button type="button" class="d2-nav-btn" id="btn-hud-inventory" data-warp="inventory" title="🎒 Tolarian Deck & Card Inventory (Overlay Window) [I]">
+              <button type="button" class="d2-nav-btn" id="btn-hud-inventory" data-warp="inventory">
                 <span class="d2-nav-icon">🎒</span>
                 <span class="d2-nav-label">Inventory [I]</span>
               </button>
-              <button type="button" class="d2-nav-btn" data-warp="bazaar" title="⚖️ The Oracle Bazaar Card Marketplace (Overlay Window)">
-                <span class="d2-nav-icon">⚖️</span>
-                <span class="d2-nav-label">Market</span>
-              </button>
-              <button type="button" class="d2-nav-btn" data-warp="guilds" title="⚔️ Citadel of Guilds (Inventory Window)">
+              <button type="button" class="d2-nav-btn" id="btn-hud-guilds" data-warp="guilds">
                 <span class="d2-nav-icon">⚔️</span>
                 <span class="d2-nav-label">Guilds</span>
               </button>
-              <button type="button" class="d2-nav-btn" data-warp="dao" title="🏛️ Royal Treasury DAO (Inventory Window)">
+              <button type="button" class="d2-nav-btn" id="btn-hud-dao" data-warp="dao">
                 <span class="d2-nav-icon">🏛️</span>
                 <span class="d2-nav-label">DAO</span>
               </button>
-              <button type="button" class="d2-nav-btn" data-warp="dnd" title="🐉 Astral Rift RPG (Inventory Window)">
+              <button type="button" class="d2-nav-btn" id="btn-hud-dnd" data-warp="dnd">
                 <span class="d2-nav-icon">🐉</span>
                 <span class="d2-nav-label">D&D</span>
               </button>
@@ -2828,18 +2492,168 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const intBtn = hotbarEl.querySelector("#btn-dfk-interact");
       if (intBtn) intBtn.onclick = interact;
 
-      // Section Navigation click (Walks into dedicated room)
+      // Section Navigation click (Opens overlay windows)
       hotbarEl.querySelectorAll("[data-warp]").forEach(btn => {
         btn.onclick = (e) => {
           e.stopPropagation();
           const w = btn.dataset.warp;
+          if (w === "tables") {
+            toggleTablesModal();
+            return;
+          }
+          if (w === "inventory") {
+            toggleInventoryModal();
+            return;
+          }
+          if (w === "guilds") {
+            toggleGuildsModal();
+            return;
+          }
+          if (w === "dao") {
+            toggleDaoModal();
+            return;
+          }
+          if (w === "dnd") {
+            toggleDndModal();
+            return;
+          }
           let target = w;
-          if (w === "tables") target = "arena";
-          if (w === "inventory") target = "builder";
           if (w === "market") target = "bazaar";
           transitionToRoom(target);
         };
       });
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       FFXI CLASSIC COMBINED CHAT WINDOW & GAME LOG
+    ══════════════════════════════════════════════════════════════════════ */
+    let chatLog = [];
+    const MAX_CHAT_LOG = 120;
+    let activeChatTab = "all"; // "all" | "chat" | "combat" | "system"
+    let isChatCollapsed = false;
+
+    function addLog(type, text, sender = null) {
+      if (!text) return;
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      chatLog.push({ type, text, sender, time: timeStr, id: Date.now() + Math.random() });
+      if (chatLog.length > MAX_CHAT_LOG) chatLog.shift();
+      renderChatWindow();
+    }
+
+    function renderChatWindow() {
+      if (!ffxiChatEl || currentRoom !== "overworld") return;
+      const filtered = chatLog.filter(item => {
+        if (activeChatTab === "all") return true;
+        if (activeChatTab === "chat") return item.type === "say" || item.type === "tell" || item.type === "party";
+        if (activeChatTab === "combat") return item.type === "combat" || item.type === "action";
+        if (activeChatTab === "system") return item.type === "system" || item.type === "npc";
+        return true;
+      });
+
+      if (isChatCollapsed) {
+        ffxiChatEl.className = "ffxi-window ffxi-overworld-chat collapsed";
+        const lastMsg = chatLog[chatLog.length - 1];
+        const previewTxt = lastMsg ? `${lastMsg.sender ? `<${lastMsg.sender}> ` : ''}${lastMsg.text}` : "FFXI Log Ready.";
+        ffxiChatEl.innerHTML = `
+          <div class="ffxi-collapsed-bar" id="ffxi-toggle-expand" title="Click to open FFXI Chat & Log Window">
+            <span class="ffxi-title">💬 FFXI Log</span>
+            <span class="ffxi-preview-msg">${escapeHtml(previewTxt)}</span>
+            <button type="button" class="ffxi-expand-btn" aria-label="Expand FFXI Log">▲</button>
+          </div>
+        `;
+        const bar = ffxiChatEl.querySelector("#ffxi-toggle-expand");
+        if (bar) bar.onclick = () => { isChatCollapsed = false; renderChatWindow(); };
+        return;
+      }
+
+      ffxiChatEl.className = "ffxi-window ffxi-overworld-chat";
+      ffxiChatEl.innerHTML = `
+        <div class="ffxi-header">
+          <span class="ffxi-title">💬 <b>FFXI LOG & CHAT</b></span>
+          <div class="ffxi-tabs">
+            <button type="button" class="ffxi-tab ${activeChatTab === 'all' ? 'active' : ''}" data-ctab="all">All</button>
+            <button type="button" class="ffxi-tab ${activeChatTab === 'chat' ? 'active' : ''}" data-ctab="chat">Chat</button>
+            <button type="button" class="ffxi-tab ${activeChatTab === 'combat' ? 'active' : ''}" data-ctab="combat">Combat</button>
+            <button type="button" class="ffxi-tab ${activeChatTab === 'system' ? 'active' : ''}" data-ctab="system">System</button>
+          </div>
+          <span class="ffxi-spacer"></span>
+          <button type="button" class="ffxi-min-btn" id="ffxi-btn-collapse" title="Minimize Window">▼</button>
+        </div>
+        <div class="ffxi-log-stream" id="ffxi-log-stream">
+          ${filtered.length ? filtered.map(item => {
+            const badgeCls = item.type === "say" ? "ffxi-badge-say" : item.type === "combat" ? "ffxi-badge-combat" : item.type === "npc" ? "ffxi-badge-npc" : "ffxi-badge-system";
+            const badgeLabel = item.type === "say" ? "Say" : item.type === "combat" ? "Combat" : item.type === "npc" ? "NPC" : "System";
+            const rowCls = item.type === "say" ? "ffxi-ch-say" : item.type === "combat" ? "ffxi-ch-combat" : item.type === "npc" ? "ffxi-ch-npc" : "ffxi-ch-system";
+            return `
+              <div class="ffxi-log-row ${rowCls}">
+                <span class="ffxi-log-time">[${item.time}]</span>
+                <span class="ffxi-badge-channel ${badgeCls}">[${badgeLabel}]</span>
+                ${item.sender ? `<b class="ffxi-sender">&lt;${escapeHtml(item.sender)}&gt;</b>` : ""}
+                <span class="ffxi-text">${escapeHtml(item.text)}</span>
+              </div>
+            `;
+          }).join("") : `<div class="muted" style="padding:10px;text-align:center;font-style:italic">No messages in this channel.</div>`}
+        </div>
+        <form class="ffxi-input-bar" id="ffxi-chat-form">
+          <span class="ffxi-prompt-tag">[Say] ▶</span>
+          <input type="text" class="ffxi-chat-input" id="ffxi-chat-input" placeholder="Type message or /help…" autocomplete="off" maxlength="140" />
+          <button type="submit" class="ffxi-send-btn">Send</button>
+        </form>
+      `;
+
+      ffxiChatEl.querySelectorAll("[data-ctab]").forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          activeChatTab = btn.dataset.ctab;
+          renderChatWindow();
+        };
+      });
+      const colBtn = ffxiChatEl.querySelector("#ffxi-btn-collapse");
+      if (colBtn) {
+        colBtn.onclick = (e) => {
+          e.stopPropagation();
+          isChatCollapsed = true;
+          renderChatWindow();
+        };
+      }
+      const stream = ffxiChatEl.querySelector("#ffxi-log-stream");
+      if (stream) stream.scrollTop = stream.scrollHeight;
+
+      const chatForm = ffxiChatEl.querySelector("#ffxi-chat-form");
+      if (chatForm) {
+        chatForm.onsubmit = (e) => {
+          e.preventDefault();
+          const inp = chatForm.querySelector("#ffxi-chat-input");
+          if (!inp || !inp.value.trim()) return;
+          const text = inp.value.trim();
+          inp.value = "";
+
+          if (text === "/clear") {
+            chatLog = [];
+            renderChatWindow();
+            return;
+          }
+          if (text === "/help") {
+            addLog("system", "FFXI Chat: type message to broadcast to nearby adventurers. Commands: /clear, /help.");
+            return;
+          }
+
+          if (window.MTG_RPG_CLIENT && window.MTG_RPG_CLIENT.sendChat) {
+            window.MTG_RPG_CLIENT.sendChat(text);
+          } else {
+            addLog("say", text, hero.name || "Planeswalker");
+          }
+        };
+
+        const inp = chatForm.querySelector("#ffxi-chat-input");
+        if (inp) {
+          inp.addEventListener("keydown", (e) => {
+            e.stopPropagation();
+            if (e.key === "Escape") inp.blur();
+          });
+        }
+      }
     }
 
     /* ── MINIMAP ── */
@@ -2847,32 +2661,46 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       if (!mmCtx || currentRoom !== "overworld") return;
       const mW = 160, mH = 110;
       mmCtx.clearRect(0, 0, mW, mH);
-      // Background
-      const kingdom = ensurePixelKingdom();
-      mmCtx.imageSmoothingEnabled = false;
-      mmCtx.drawImage(kingdom, 0, 0, mW, mH);
+
+      // Background: TMX Tilemap
+      if (tmxCanvasReady) {
+        mmCtx.imageSmoothingEnabled = false;
+        mmCtx.drawImage(tmxCanvas, 0, 0, mW, mH);
+      } else {
+        const kingdom = ensurePixelKingdom();
+        mmCtx.imageSmoothingEnabled = false;
+        mmCtx.drawImage(kingdom, 0, 0, mW, mH);
+      }
       mmCtx.strokeStyle = "rgba(215,180,92,0.6)"; mmCtx.lineWidth = 1; mmCtx.strokeRect(0, 0, mW, mH);
 
+      // Camera Viewport Box on minimap
+      const vx = (camX / WORLD_MAP_W) * mW;
+      const vy = (camY / WORLD_MAP_H) * mH;
+      const vw = (viewW / WORLD_MAP_W) * mW;
+      const vh = (viewH / WORLD_MAP_H) * mH;
+      mmCtx.strokeStyle = "rgba(255,255,255,0.45)";
+      mmCtx.lineWidth = 1;
+      mmCtx.strokeRect(Math.max(0, vx), Math.max(0, vy), Math.min(mW, vw), Math.min(mH, vh));
+
       // Mana well
-      const scale = (v, dim) => v / dim;
-      const mx = scale(manaWell.x, viewW) * mW;
-      const my = scale(manaWell.y, viewH) * mH;
-      mmCtx.fillStyle = "rgba(215,180,92,0.3)"; mmCtx.beginPath(); mmCtx.arc(mx, my, 7, 0, Math.PI * 2); mmCtx.fill();
+      const mx = (manaWell.x / WORLD_MAP_W) * mW;
+      const my = (manaWell.y / WORLD_MAP_H) * mH;
+      mmCtx.fillStyle = "rgba(215,180,92,0.3)"; mmCtx.beginPath(); mmCtx.arc(mx, my, 6, 0, Math.PI * 2); mmCtx.fill();
       mmCtx.strokeStyle = "#d7b45c"; mmCtx.lineWidth = 1; mmCtx.stroke();
       mmCtx.font = "7px sans-serif"; mmCtx.textAlign = "center"; mmCtx.textBaseline = "middle"; mmCtx.fillStyle = "#f3dd9a"; mmCtx.fillText("✦", mx, my);
 
       // Ley lines to landmarks
       for (const lm of landmarks) {
-        const lmx = scale(lm.x, viewW) * mW;
-        const lmy = scale(lm.y, viewH) * mH;
+        const lmx = (lm.x / WORLD_MAP_W) * mW;
+        const lmy = (lm.y / WORLD_MAP_H) * mH;
         mmCtx.strokeStyle = lm.color + "40"; mmCtx.lineWidth = 0.8;
         mmCtx.beginPath(); mmCtx.moveTo(mx, my); mmCtx.lineTo(lmx, lmy); mmCtx.stroke();
       }
 
       // Landmarks as dots
       for (const lm of landmarks) {
-        const lmx = scale(lm.x, viewW) * mW;
-        const lmy = scale(lm.y, viewH) * mH;
+        const lmx = (lm.x / WORLD_MAP_W) * mW;
+        const lmy = (lm.y / WORLD_MAP_H) * mH;
         const isNear = nearestLandmark && nearestLandmark.id === lm.id;
         mmCtx.fillStyle = isNear ? lm.color : lm.color + "99";
         mmCtx.beginPath(); mmCtx.arc(lmx, lmy, isNear ? 4.5 : 3, 0, Math.PI * 2); mmCtx.fill();
@@ -2880,15 +2708,24 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
         mmCtx.fillStyle = lm.color; mmCtx.fillText(lm.icon.match(/\p{Emoji}/u)?.[0] || "●", lmx, lmy - 6);
       }
 
+      // Sparring dummy & Sparky dots on minimap
+      const dmx = (dummy.x / WORLD_MAP_W) * mW;
+      const dmy = (dummy.y / WORLD_MAP_H) * mH;
+      mmCtx.fillStyle = "#ef4444"; mmCtx.beginPath(); mmCtx.arc(dmx, dmy, 2.5, 0, Math.PI * 2); mmCtx.fill();
+
+      const smx = (sparky.x / WORLD_MAP_W) * mW;
+      const smy = (sparky.y / WORLD_MAP_H) * mH;
+      mmCtx.fillStyle = "#38bdf8"; mmCtx.beginPath(); mmCtx.arc(smx, smy, 2.5, 0, Math.PI * 2); mmCtx.fill();
+
       // Hero dot
-      const hx = scale(hero.x, viewW) * mW;
-      const hy = scale(hero.y, viewH) * mH;
+      const hx = (hero.x / WORLD_MAP_W) * mW;
+      const hy = (hero.y / WORLD_MAP_H) * mH;
       mmCtx.fillStyle = "#fff"; mmCtx.beginPath(); mmCtx.arc(hx, hy, 3.5, 0, Math.PI * 2); mmCtx.fill();
       mmCtx.strokeStyle = "#f3dd9a"; mmCtx.lineWidth = 1; mmCtx.stroke();
 
       // Label
       mmCtx.font = "bold 7px system-ui,sans-serif"; mmCtx.fillStyle = "rgba(215,180,92,0.7)"; mmCtx.textAlign = "left"; mmCtx.textBaseline = "bottom";
-      mmCtx.fillText("Overworld", 4, mH - 2);
+      mmCtx.fillText("TMX Homeroom", 4, mH - 2);
     }
 
     /* ══════════════════════════════════════════════════════════════════════
@@ -2912,16 +2749,19 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       if (type === "heal") {
         hero.hp = Math.min(hero.maxHp, hero.hp + 25); updatePlayerVitals();
         window.MTG_SFX && window.MTG_SFX.play("sparkle"); spawnParticles(hero.x, hero.y, 35, "#4ade80", 3.5, -0.08); addFloatingText(hero.x, hero.y - 28, "+25 Life", "#4ade80");
+        addLog("combat", "Cast Healing Aura (+25 Life)! 💚");
         window.MTG_RPG_CLIENT?.onCastSpell?.({ type: "heal", x: hero.x, y: hero.y });
         return;
       }
       if (type === "sparkle") {
         window.MTG_SFX && window.MTG_SFX.play("sparkle"); spawnParticles(hero.x, hero.y, 45, "#f472b6", 4.2, -0.05); addFloatingText(hero.x, hero.y - 25, "✨ Planeswalker Sparkles!", "#f472b6");
+        addLog("combat", "Cast Sparkle Burst! ✨");
         window.MTG_RPG_CLIENT?.onCastSpell?.({ type: "sparkle", x: hero.x, y: hero.y });
         return;
       }
       if (type === "frost") {
         window.MTG_SFX && window.MTG_SFX.play("cast"); spawnParticles(hero.x, hero.y, 45, "#38bdf8", 5.2, 0); addFloatingText(hero.x, hero.y - 25, "❄️ Frost Nova!", "#38bdf8");
+        addLog("combat", "Cast Frost Nova! ❄️");
         window.MTG_RPG_CLIENT?.onCastSpell?.({ type: "frost", x: hero.x, y: hero.y });
         return;
       }
@@ -2931,6 +2771,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const angle = Math.atan2(ty - hero.y, tx - hero.x);
       window.MTG_SFX && window.MTG_SFX.play("cast");
       projectiles.push({ x: hero.x, y: hero.y, vx: Math.cos(angle) * 7.8, vy: Math.sin(angle) * 7.8, type: "fireball", radius: 9, life: 65, damage: 45, color: "#f97316" });
+      addLog("combat", "Cast Fireball! 🔥");
       if (window.MTG_RPG_CLIENT?.onCastSpell) {
         window.MTG_RPG_CLIENT.onCastSpell({ type: "fireball", x: hero.x, y: hero.y, targetX: tx, targetY: ty });
       }
@@ -2967,6 +2808,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
     }
 
     function showDialog(speaker, icon, text) {
+      if (window.MTG?.bringToFront) window.MTG.bringToFront(dialogEl);
       dialogEl.hidden = false;
       dialogEl.innerHTML = `
         <div class="homeroom-dialog-box">
@@ -2999,10 +2841,41 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
         toggleTablesModal();
         return;
       }
+      if (e.key === "g" || e.key === "G") {
+        e.preventDefault();
+        toggleGuildsModal();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (isChatCollapsed) {
+          isChatCollapsed = false;
+          renderChatWindow();
+        }
+        const inp = document.getElementById("ffxi-chat-input");
+        if (inp) inp.focus();
+        return;
+      }
       if (currentRoom !== "overworld") {
         roomKeys[e.key.toLowerCase()] = true;
         if (e.key === "Escape") {
+          const panel = roomOverlay.querySelector("#dfk-room-panel");
+          if (panel && !panel.hidden) {
+            panel.hidden = true;
+            const toggleBtn = roomOverlay.querySelector("#dfk-room-panel-toggle");
+            if (toggleBtn) toggleBtn.classList.remove("gold");
+            return;
+          }
           transitionToRoom("overworld");
+          return;
+        }
+        if (e.key === "m" || e.key === "M") {
+          const panel = roomOverlay.querySelector("#dfk-room-panel");
+          const toggleBtn = roomOverlay.querySelector("#dfk-room-panel-toggle");
+          if (panel) {
+            panel.hidden = !panel.hidden;
+            if (toggleBtn) toggleBtn.classList.toggle("gold", !panel.hidden);
+          }
           return;
         }
         if (e.key === " " || e.key === "Spacebar" || e.code === "Space" || e.key === "e" || e.key === "E") {
@@ -3042,27 +2915,25 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const clickY = e.clientY - rect.top;
 
       if (currentRoom !== "overworld") {
-        // In-room movement
-        roomHero.targetX = Math.max(40, Math.min(viewW - 40, clickX));
-        roomHero.targetY = Math.max(40, Math.min(viewH - 40, clickY));
-        // Check exit arch click
-        if (currentRoom === "mirror") {
-          const fScale = Math.min((viewW * 0.90) / 352, (viewH * 0.90) / 319, 1.85);
-          const fh = Math.round(319 * fScale);
-          const fy = Math.round((viewH - fh) / 2);
-          if (Math.hypot(clickX - viewW / 2, clickY - (fy + fh - 14 * fScale)) < 45) {
-            transitionToRoom("overworld");
-            return;
-          }
-        }
-        if (Math.hypot(clickX - viewW / 2, clickY - viewH) < 55) {
+        const fr = getRoomFrame(currentRoom, viewW, viewH);
+        const exitX = fr.x + fr.dw * 0.5;
+        const exitY = fr.y + fr.dh * 0.92;
+        if (Math.hypot(clickX - exitX, clickY - exitY) < 45) {
           transitionToRoom("overworld");
+          return;
         }
+        // In-room movement
+        roomHero.targetX = Math.max(fr.x + fr.dw * 0.12, Math.min(fr.x + fr.dw * 0.88, clickX));
+        roomHero.targetY = Math.max(fr.y + fr.dh * 0.22, Math.min(fr.y + fr.dh * 0.93, clickY));
         return;
       }
 
+      // In overworld, convert canvas client coordinates to world coordinates via camera offset!
+      const worldX = clickX + camX;
+      const worldY = clickY + camY;
+
       // Check click on dummy
-      if (Math.hypot(clickX - dummy.x, clickY - dummy.y) < 38) {
+      if (Math.hypot(worldX - dummy.x, worldY - dummy.y) < 38) {
         hero.targetX = dummy.x; hero.targetY = dummy.y + 35;
         spawnWaypoint(hero.targetX, hero.targetY);
         if (Math.hypot(dummy.x - hero.x, dummy.y - hero.y) < 85) {
@@ -3072,7 +2943,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       }
 
       // Check click on sparky
-      if (Math.hypot(clickX - sparky.x, clickY - sparky.y) < 34) {
+      if (Math.hypot(worldX - sparky.x, worldY - sparky.y) < 34) {
         hero.targetX = sparky.x; hero.targetY = sparky.y + 32;
         spawnWaypoint(hero.targetX, hero.targetY);
         if (Math.hypot(sparky.x - hero.x, sparky.y - hero.y) < 85) {
@@ -3081,21 +2952,24 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
         return;
       }
 
-      // Overworld click
+      // Overworld click on landmark building or pad
       let clickedLm = null;
       landmarks.forEach(lm => {
         const halfW = (lm.w || 200) / 2;
         const topY = lm.y - (lm.h || 150) / 2;
         const botY = (lm.bannerY || (lm.y + (lm.h || 150) / 2)) + 32;
-        if (clickX >= lm.x - halfW && clickX <= lm.x + halfW && clickY >= topY && clickY <= botY) clickedLm = lm;
+        if (worldX >= lm.x - halfW && worldX <= lm.x + halfW && worldY >= topY && worldY <= botY) clickedLm = lm;
+        if (lm.padX != null && lm.padY != null) {
+          if (Math.hypot(worldX - lm.padX, worldY - lm.padY) < (lm.padRadius || 24) + 12) clickedLm = lm;
+        }
       });
       if (clickedLm) {
         hero.targetX = clickedLm.padX || clickedLm.x; hero.targetY = clickedLm.padY || (clickedLm.y + clickedLm.h / 2 + 25);
         spawnWaypoint(hero.targetX, hero.targetY);
         if (Math.hypot((clickedLm.padX || clickedLm.x) - hero.x, (clickedLm.padY || clickedLm.y) - hero.y) < 110) { nearestLandmark = clickedLm; transitionToRoom(clickedLm.id); }
       } else {
-        hero.targetX = Math.max(50, Math.min(viewW - 50, clickX));
-        hero.targetY = Math.max(50, Math.min(viewH - 50, clickY));
+        hero.targetX = Math.max(32, Math.min(WORLD_MAP_W - 32, worldX));
+        hero.targetY = Math.max(32, Math.min(WORLD_MAP_H - 32, worldY));
         spawnWaypoint(hero.targetX, hero.targetY);
       }
     }
@@ -3162,18 +3036,41 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       if (moveX !== 0 || moveY !== 0) {
         hero.targetX = null; hero.targetY = null; waypoint = null;
         const len = Math.hypot(moveX, moveY);
-        hero.x += (moveX / len) * hero.speed; hero.y += (moveY / len) * hero.speed; hero.isMoving = true;
+        const dx = (moveX / len) * hero.speed;
+        const dy = (moveY / len) * hero.speed;
+        let moved = false;
+        if (canHeroOccupy(hero.x + dx, hero.y + dy)) {
+          hero.x += dx; hero.y += dy; moved = true;
+        } else if (canHeroOccupy(hero.x + dx, hero.y)) {
+          hero.x += dx; moved = true;
+        } else if (canHeroOccupy(hero.x, hero.y + dy)) {
+          hero.y += dy; moved = true;
+        }
+        hero.isMoving = moved;
       } else if (hero.targetX != null && hero.targetY != null) {
         const dx = hero.targetX - hero.x, dy = hero.targetY - hero.y, dist = Math.hypot(dx, dy);
         if (dist > 5) {
-          hero.x += (dx / dist) * hero.speed; hero.y += (dy / dist) * hero.speed; hero.isMoving = true;
+          const step = Math.min(dist, hero.speed);
+          const stepX = (dx / dist) * step;
+          const stepY = (dy / dist) * step;
+          let moved = false;
+          if (canHeroOccupy(hero.x + stepX, hero.y + stepY)) {
+            hero.x += stepX; hero.y += stepY; moved = true;
+          } else if (canHeroOccupy(hero.x + stepX, hero.y)) {
+            hero.x += stepX; moved = true;
+          } else if (canHeroOccupy(hero.x, hero.y + stepY)) {
+            hero.y += stepY; moved = true;
+          } else {
+            hero.targetX = null; hero.targetY = null; waypoint = null;
+          }
+          hero.isMoving = moved;
           if (Math.abs(dx) > Math.abs(dy)) hero.dir = dx > 0 ? 2 : 1; else hero.dir = dy > 0 ? 0 : 3;
         } else { hero.targetX = null; hero.targetY = null; hero.isMoving = false; waypoint = null; }
       } else {
         hero.isMoving = false;
       }
-      hero.x = Math.max(45, Math.min(viewW - 45, hero.x));
-      hero.y = Math.max(45, Math.min(viewH - 45, hero.y));
+      hero.x = Math.max(20, Math.min(WORLD_MAP_W - 20, hero.x));
+      hero.y = Math.max(20, Math.min(WORLD_MAP_H - 20, hero.y));
 
       // Broadcast move to RPGJS server
       if (window.MTG_RPG_CLIENT?.sendMove) {
@@ -3215,7 +3112,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           continue;
         }
         
-        if (p.x < 10 || p.x > viewW - 10 || p.y < 10 || p.y > viewH - 10 || p.life <= 0) { spawnParticles(p.x, p.y, 14, p.color, 3); projectiles.splice(i, 1); }
+        if (p.x < 10 || p.x > WORLD_MAP_W - 10 || p.y < 10 || p.y > WORLD_MAP_H - 10 || p.life <= 0) { spawnParticles(p.x, p.y, 14, p.color, 3); projectiles.splice(i, 1); }
       }
       // Particles
       for (let i = particles.length - 1; i >= 0; i--) {
@@ -3291,36 +3188,13 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           roomHero.x += (dx / dist) * roomHero.speed; roomHero.y += (dy / dist) * roomHero.speed; roomHero.isMoving = true;
         } else { roomHero.targetX = null; roomHero.targetY = null; roomHero.isMoving = false; }
       } else { roomHero.isMoving = false; }
-      if (currentRoom === "arena" && colosseumMapLoaded) {
-        const fr = colosseumFrame(viewW, viewH);
-        roomHero.x = Math.max(fr.x + fr.dw * 0.28, Math.min(fr.x + fr.dw * 0.72, roomHero.x));
-        roomHero.y = Math.max(fr.y + fr.dh * 0.58, Math.min(fr.y + fr.dh * 0.9, roomHero.y));
-        if (roomHero.y > fr.y + fr.dh * 0.84 && Math.abs(roomHero.x - (fr.x + fr.dw * 0.5)) < 48) {
-          transitionToRoom("overworld");
-        }
-      } else if (currentRoom === "guilds" && tavernInteriorLoaded) {
-        const fr = tavernFrame(viewW, viewH);
-        roomHero.x = Math.max(fr.x + fr.dw * 0.14, Math.min(fr.x + fr.dw * 0.86, roomHero.x));
-        roomHero.y = Math.max(fr.y + fr.dh * 0.4, Math.min(fr.y + fr.dh * 0.9, roomHero.y));
-        if (roomHero.y > fr.y + fr.dh * 0.82 && Math.abs(roomHero.x - (fr.x + fr.dw * 0.5)) < 42) {
-          transitionToRoom("overworld");
-        }
-      } else if (currentRoom === "mirror") {
-        const fScale = Math.min((viewW * 0.90) / 352, (viewH * 0.90) / 319, 1.85);
-        const fw = Math.round(352 * fScale);
-        const fh = Math.round(319 * fScale);
-        const fx = Math.round((viewW - fw) / 2);
-        const fy = Math.round((viewH - fh) / 2);
-        roomHero.x = Math.max(fx + fw * 0.12, Math.min(fx + fw * 0.88, roomHero.x));
-        roomHero.y = Math.max(fy + fh * 0.30, Math.min(fy + fh * 0.94, roomHero.y));
-        if (roomHero.y > (fy + fh - Math.round(22 * fScale)) && Math.abs(roomHero.x - viewW / 2) < 36) {
-          transitionToRoom("overworld");
-        }
-      } else {
-        roomHero.x = Math.max(40, Math.min(viewW - 40, roomHero.x));
-        roomHero.y = Math.max(40, Math.min(viewH - 40, roomHero.y));
-        // Check exit (bottom center portal)
-        if (roomHero.y > viewH * 0.92 && Math.abs(roomHero.x - viewW / 2) < 36) {
+      if (currentRoom !== "overworld") {
+        const fr = getRoomFrame(currentRoom, viewW, viewH);
+        roomHero.x = Math.max(fr.x + fr.dw * 0.12, Math.min(fr.x + fr.dw * 0.88, roomHero.x));
+        roomHero.y = Math.max(fr.y + fr.dh * 0.22, Math.min(fr.y + fr.dh * 0.93, roomHero.y));
+        const exitX = fr.x + fr.dw * 0.5;
+        const exitY = fr.y + fr.dh * 0.92;
+        if (Math.hypot(roomHero.x - exitX, roomHero.y - exitY) < 36) {
           transitionToRoom("overworld");
         }
       }
@@ -3372,12 +3246,24 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       }
 
       // ── OVERWORLD ──
+      updateCamera();
 
-      // 1. Pixel kingdom overworld
-      const kingdom = ensurePixelKingdom();
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(kingdom, 0, 0, viewW, viewH);
-      drawImperialLabels(ctx);
+      // Background letterbox fill
+      ctx.fillStyle = "#0c1017";
+      ctx.fillRect(0, 0, viewW, viewH);
+
+      ctx.save();
+      ctx.translate(-camX, -camY);
+
+      // 1. Full TMX Tilemap
+      if (tmxCanvasReady) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tmxCanvas, 0, 0);
+      } else {
+        const kingdom = ensurePixelKingdom();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(kingdom, 0, 0, WORLD_MAP_W, WORLD_MAP_H);
+      }
 
       // Roads are baked into the pixel map. No overlay lines.
 
@@ -3524,8 +3410,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       overworldDecor.forEach(dec => {
         const asset = buildingAssets[dec.type];
         if (!asset || (!asset.loaded && !asset.img.complete) || asset.img.naturalWidth === 0) return;
-        const dx = Math.round(viewW * dec.xRel);
-        const dy = Math.round(viewH * dec.yRel);
+        const dx = dec.x !== undefined ? dec.x : Math.round(WORLD_MAP_W * (dec.xRel || 0.5));
+        const dy = dec.y !== undefined ? dec.y : Math.round(WORLD_MAP_H * (dec.yRel || 0.5));
         const sc = asset.scale || 0.6;
         const dw = Math.round(asset.img.naturalWidth * sc);
         const dh = Math.round(asset.img.naturalHeight * sc);
@@ -3730,10 +3616,12 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
         ctx.fillText(ft.text, ft.x, ft.y); ctx.restore();
       });
 
-      ctx.restore();
+      ctx.restore(); // Restore camera translation
 
       // Minimap
       drawMinimap();
+
+      ctx.restore(); // Restore dpr scale
     }
 
     function drawRoom(c, roomId, W, H, t, rh) {
@@ -3762,10 +3650,13 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       if (s.type === "heal") {
         spawnParticles(s.x, s.y, 30, "#4ade80", 3.5, -0.08);
         addFloatingText(s.x, s.y - 28, "+25 Life", "#4ade80");
+        addLog("combat", "Nearby adventurer cast Healing Aura! 💚");
       } else if (s.type === "sparkle") {
         spawnParticles(s.x, s.y, 35, "#f472b6", 4.2, -0.05);
+        addLog("combat", "Nearby adventurer cast Sparkles! ✨");
       } else if (s.type === "frost") {
         spawnParticles(s.x, s.y, 40, "#38bdf8", 5.2, 0);
+        addLog("combat", "Nearby adventurer cast Frost Nova! ❄️");
       } else {
         let tx = s.targetX ?? s.x, ty = s.targetY ?? s.y;
         const angle = Math.atan2(ty - s.y, tx - s.x);
@@ -3774,6 +3665,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           vx: Math.cos(angle) * 7.8, vy: Math.sin(angle) * 7.8,
           type: "fireball", radius: 9, life: 65, damage: 45, color: "#f97316"
         });
+        addLog("combat", "Nearby spell cast! 🔥");
       }
     }
 
@@ -3783,6 +3675,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const text = sparky.dialogs[sparky.dlgIdx % sparky.dialogs.length];
       sparky.dlgIdx++;
       showDialog(sparky.name, sparky.icon, text);
+      addLog("npc", text, "Sparky");
       if (hero.mp < hero.maxMp) {
         hero.mp = Math.min(hero.maxMp, hero.mp + 20);
         updatePlayerVitals();
@@ -3794,6 +3687,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       goldBalance += amount;
       renderPlayerCard();
       updatePlayerVitals();
+      addLog("system", `Obtained ${amount.toLocaleString()} Gold! 🪙`);
     }
 
     function onRemoteSparringDamage(dmg) {
@@ -3801,6 +3695,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       dummy.hp = Math.max(0, dummy.hp - (dmg || 25));
       spawnParticles(dummy.x, dummy.y, 14, "#f97316", 3);
       addFloatingText(dummy.x, dummy.y - 30, `-${dmg || 25}`, "#ef4444");
+      addLog("combat", `Sparring dummy struck! (-${dmg || 25} HP)`);
       if (dummy.hp <= 0) dummy.hp = dummy.maxHp;
     }
 
@@ -3824,6 +3719,12 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
 
     window.MTG_RPG = window.MTG_RPG || {};
     window.MTG_RPG.updateUser = updateUser;
+    window.MTG_RPG.toggleGuildsModal = toggleGuildsModal;
+    window.MTG_RPG.toggleDaoModal = toggleDaoModal;
+    window.MTG_RPG.toggleDndModal = toggleDndModal;
+    window.MTG_RPG.toggleInventoryModal = toggleInventoryModal;
+    window.MTG_RPG.toggleTablesModal = toggleTablesModal;
+    window.MTG_RPG.addLog = addLog;
     window.MTG_RPG.setActiveDeckName = (dName) => {
       activeDeckName = dName;
       renderPlayerCard();
@@ -3842,6 +3743,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
     renderPlayerCard();
     renderTopNavHud();
     renderHotbar();
+    renderChatWindow();
+    addLog("system", "Welcome to The Crypto Game. FFXI Log & Chat online. [Enter] to chat.");
     animId = requestAnimationFrame(loop);
 
     return {
@@ -3861,6 +3764,11 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
         window.removeEventListener("keydown", onKeyDown);
         window.removeEventListener("keyup", onKeyUp);
         canvas.removeEventListener("pointerdown", onCanvasPointerDown);
+        if (bottomDockEl && bottomDockEl.parentNode) bottomDockEl.parentNode.removeChild(bottomDockEl);
+        else {
+          if (ffxiChatEl && ffxiChatEl.parentNode) ffxiChatEl.parentNode.removeChild(ffxiChatEl);
+          if (hotbarEl && hotbarEl.parentNode) hotbarEl.parentNode.removeChild(hotbarEl);
+        }
       },
     };
   }

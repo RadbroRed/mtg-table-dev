@@ -1055,10 +1055,20 @@
     return getCachedUser(second);
   }
 
+  let topZIndex = 100200;
+  function bringToFront(el) {
+    topZIndex = Math.max(topZIndex + 10, 100200);
+    if (el && el.style) {
+      el.style.zIndex = topZIndex;
+    }
+    return topZIndex;
+  }
+
   function toast(text) {
     const el = document.getElementById("toast");
     if (!el) return;
     el.textContent = text;
+    el.style.zIndex = Math.max(topZIndex + 50, 100500);
     el.hidden = false;
     clearTimeout(toast._t);
     toast._t = setTimeout(() => {
@@ -1364,16 +1374,21 @@
         <div class="spacer"></div>
 
         <!-- Level & XP Badge -->
-        <div class="rpg-level-badge" style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.3);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;" title="Planeswalker Level ${curLevel} · ${curXp} / ${curXpNeeded} XP (${curXpPct}%)">
+        <div class="rpg-level-badge" style="display:flex;align-items:center;gap:5px;border-radius:6px;padding:2px 6px;font-size:11px;" title="Planeswalker Level ${curLevel} · ${curXp} / ${curXpNeeded} XP (${curXpPct}%)">
           <span style="font-weight:bold;color:var(--gold);">Lv. ${curLevel}</span>
-          <div style="width:36px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+          <div style="width:30px;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
             <div style="width:${curXpPct}%;height:100%;background:linear-gradient(90deg,#8b5cf6,#eab308);"></div>
           </div>
         </div>
 
+        <!-- Quests & XP Button -->
+        <button type="button" class="btn small ghost quests-btn" id="quests-btn" title="Quests &amp; Ways to Earn XP">
+          📜 <span id="quests-btn-label">Quests</span><span class="badge" id="quests-badge" style="display:none">0</span>
+        </button>
+
         <!-- Gold Vault & Wager Hub Button -->
         <button type="button" class="btn gold small vault-btn rpg-gold-badge" id="vault-btn" title="Gold Vault & Leaderboard">
-          🪙 <span id="user-gold">${balanceDisplay.toLocaleString()}</span> Gold
+          🪙 <span id="user-gold">${balanceDisplay.toLocaleString()}</span><span class="vault-label"> Gold</span>
         </button>
 
         <!-- Web3 Crypto Wallet Navigation Pill -->
@@ -1474,6 +1489,21 @@
       const chip = $("#lan-chip");
       if (chip) chip.innerHTML = `Share <strong>${escapeHtml(inf.url)}</strong>`;
     });
+
+    const questsBtn = $("#quests-btn");
+    if (questsBtn) {
+      // Open straight into the inventory's Quests tab when it is available, so
+      // the top-nav button and the tab are the same surface.
+      questsBtn.onclick = () => {
+        if (window.MTG.openInventoryModal) {
+          window.MTG.openInventoryModal({ tab: "quests" });
+          return;
+        }
+        openQuestsOverlay();
+      };
+      // No-op unless signed in — refreshQuestsBadge bails without a cached user.
+      refreshQuestsBadge();
+    }
 
     const vaultBtn = $("#vault-btn");
     if (vaultBtn) {
@@ -2226,9 +2256,160 @@
     }
   }
 
+  /* ---------- quests & XP guide ---------- */
+
+  // Rendered only after /api/quests resolves, so nothing here invents numbers:
+  // every XP value comes from the server's XP_SOURCES list.
+  function questsOverlayHtml(d) {
+    const lvl = d.level || 1;
+    const xp = d.xp || 0;
+    const need = d.xpNeeded || 100;
+    const pct = Math.max(0, Math.min(100, Math.round((xp / need) * 100)));
+
+    const questRows = (d.quests || []).map((q) => {
+      const done = !!q.done;
+      return `
+        <li class="quest-row ${done ? "done" : ""}">
+          <span class="quest-icon">${escapeHtml(q.icon || "✨")}</span>
+          <div class="quest-body">
+            <div class="quest-name">${escapeHtml(q.name)}</div>
+            <div class="quest-desc">${escapeHtml(q.desc || "")}</div>
+            <div class="quest-progress"><span style="width:${Math.min(100, Math.round(((q.progress || 0) / (q.target || 1)) * 100))}%"></span></div>
+          </div>
+          <div class="quest-reward">
+            <span class="quest-xp">+${q.reward || 0} 🪙</span>
+            <span class="quest-count">${q.progress || 0}/${q.target || 1}</span>
+          </div>
+        </li>`;
+    }).join("");
+
+    const sourceRows = (d.xpSources || []).map((s) => `
+      <li class="xp-source-row">
+        <span class="quest-icon">${escapeHtml(s.icon || "✨")}</span>
+        <div class="quest-body">
+          <div class="quest-name">${escapeHtml(s.name)}</div>
+          <div class="quest-desc">${escapeHtml(s.desc || "")}</div>
+        </div>
+        <div class="quest-reward"><span class="quest-xp">+${s.xp} XP</span></div>
+      </li>`).join("");
+
+    const claimed = d.daily && d.daily.claimed;
+    const dailyBtn = claimed
+      ? `<button type="button" class="btn small ghost" disabled>✅ Claimed today</button>`
+      : `<button type="button" class="btn small gold" id="quests-claim-btn">Claim ${d.daily ? d.daily.nextReward : 100} 🪙 + 50 XP</button>`;
+
+    return `
+      <div class="quests-overlay">
+        <div class="quests-head">
+          <div>
+            <h2>📜 Quests &amp; Ways to Earn XP</h2>
+            <p class="muted">Every source of experience in the Multiverse. Level ${lvl} · ${xp} / ${need} XP</p>
+          </div>
+          <div class="quests-level">
+            <span class="quests-level-num">Lv. ${lvl}</span>
+            <div class="quests-xpbar"><span style="width:${pct}%"></span></div>
+            <span class="quests-xptext">${pct}%</span>
+          </div>
+        </div>
+
+        <div class="quests-totals">
+          <span>🌟 Lifetime XP <strong>${(d.totalXp || 0).toLocaleString()}</strong></span>
+          <span>📜 Quests done <strong>${d.questsDone || 0}</strong></span>
+          <span>🔥 Daily streak <strong>${(d.daily && d.daily.streak) || 0}</strong></span>
+        </div>
+
+        <section class="quests-section">
+          <h3>Today's Quests</h3>
+          <ul class="quest-list">${questRows || '<li class="muted">No quests today — check back tomorrow.</li>'}</ul>
+        </section>
+
+        <section class="quests-section">
+          <h3>Daily Reward</h3>
+          <div class="quests-daily">
+            <span>Claim once a day. The streak raises the gold payout each day up to a 12-day cap.</span>
+            ${dailyBtn}
+          </div>
+        </section>
+
+        <section class="quests-section">
+          <h3>All Ways to Earn XP</h3>
+          <ul class="quest-list xp-source-list">${sourceRows}</ul>
+          <p class="muted quests-note">Each level needs ${lvl} × 100 XP. Levelling up also pays a gold bonus.</p>
+        </section>
+      </div>`;
+  }
+
+  function bindQuestsOverlay() {
+    const claimBtn = $("#quests-claim-btn");
+    if (!claimBtn) return;
+    claimBtn.onclick = async () => {
+      claimBtn.disabled = true;
+      claimBtn.textContent = "Claiming…";
+      try {
+        const res = await api("/api/quests/claim", { method: "POST" });
+        toast(`🎁 Claimed ${res.reward} 🪙 and 50 XP!`);
+        await refreshQuestsBadge();
+        openQuestsOverlay(true);
+      } catch (err) {
+        toast(err.message || "Could not claim the daily reward.");
+        claimBtn.disabled = false;
+        await openQuestsOverlay(true);
+      }
+    };
+  }
+
+  // Drives the small count on the HUD button so it is visible without opening.
+  async function refreshQuestsBadge() {
+    const badge = $("#quests-badge");
+    if (!badge) return 0;
+    if (!getCachedUser(window.MTG_SECOND)) {
+      badge.style.display = "none";
+      return 0;
+    }
+    try {
+      const d = await api("/api/quests");
+      const pending = (d.quests || []).filter((q) => !q.done).length;
+      if (pending > 0) {
+        badge.textContent = String(pending);
+        badge.style.display = "";
+      } else {
+        badge.style.display = "none";
+      }
+      return pending;
+    } catch {
+      badge.style.display = "none";
+      return 0;
+    }
+  }
+
+  async function openQuestsOverlay(force) {
+    if (force !== true && !getCachedUser(window.MTG_SECOND)) {
+      openModal(`
+        <div class="quests-overlay">
+          <h2>📜 Quests</h2>
+          <p class="muted">Log in to track your daily quests and see every way to earn XP.</p>
+        </div>`);
+      return;
+    }
+    openModal(`<div class="quests-overlay"><p class="muted">Loading quests…</p></div>`);
+    try {
+      const d = await api("/api/quests");
+      openModal(questsOverlayHtml(d));
+      bindQuestsOverlay();
+      refreshQuestsBadge();
+    } catch (err) {
+      openModal(`
+        <div class="quests-overlay">
+          <h2>📜 Quests</h2>
+          <p class="muted">${escapeHtml(err.message || "Could not load quests.")}</p>
+        </div>`);
+    }
+  }
+
   function openModal(html) {
     const m = $("#modal");
     if (!m) return;
+    bringToFront(m);
     m.hidden = false;
     const hasOwnFrame = html.includes("game-inventory-window") || html.includes("d2-window-frame");
     const hasOwnClose = html.includes("game-window-close-btn") || html.includes("d2-close-btn") || html.includes("mkt-close-btn") || html.includes("inv-close-btn");
@@ -2890,7 +3071,7 @@
   }
 
   /* websocket helper */
-  function connectWS({ playerId, name, onState, onError, onHello }) {
+  function connectWS({ playerId, name, onState, onError, onHello, onBell, onClosed }) {
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${proto}://${location.host}/ws`);
     const send = (obj) => {
@@ -2936,6 +3117,12 @@
           }
         }
         onState && onState(msg.state);
+      } else if (msg.t === "bell") {
+        // Opponent rang for attention. Nudge them audibly + visually.
+        onBell && onBell(msg);
+      } else if (msg.t === "closed") {
+        // The table was torn down underneath us (closed or deleted).
+        onClosed && onClosed(msg.error || "Table was closed");
       } else if (msg.t === "joined") {
         /* state follows */
       } else if (msg.t === "error") {
@@ -2969,6 +3156,7 @@
     bindNav,
     openModal,
     closeModal,
+    bringToFront,
     connectWS,
     sparkle: spawnSparkles,
     loginIcon: LOGIN_ICON,

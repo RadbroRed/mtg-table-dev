@@ -283,11 +283,14 @@
         }
         openProposalModal();
       };
+      const m = document.getElementById("modal");
+      if (m && window.MTG?.bringToFront) window.MTG.bringToFront(m);
     }
 
     function openProposalModal() {
       const modal = $("#modal");
       if (!modal) return;
+      if (window.MTG?.bringToFront) window.MTG.bringToFront(modal);
       modal.hidden = false;
       modal.innerHTML = `
         <div class="sheet">

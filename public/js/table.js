@@ -13,31 +13,33 @@
     overlay = document.createElement("div");
     overlay.id = "table-full-overlay";
     overlay.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:100050;background:var(--bg);";
-    overlay.innerHTML = `<div class="table-screen" id="table-root" style="height:100%;"><div class="playmat"><div class="pregame"><h2>Connecting…</h2><p class="muted">Talking to the table on this computer.</p></div></div><aside class="sidebar"></aside><button type="button" id="sidebar-toggle" class="sidebar-toggle" title="Hide the side panel">⟩</button></div>
+    if (window.MTG?.bringToFront) window.MTG.bringToFront(overlay);
+    overlay.innerHTML = `<div class="table-screen" id="table-root" style="height:100%;"><div class="playmat"><div class="pregame"><h2>Connecting…</h2><p class="muted">Talking to the table on this computer.</p></div></div><aside class="bottombar"></aside><button type="button" id="bar-toggle" class="bar-toggle" title="Hide the action bar">⌄</button></div>
       <div class="preview" id="preview" hidden></div>
       <div class="menu" id="cmenu" hidden></div>
       <div id="atk-fx" class="atk-fx" hidden></div>
-      <button type="button" id="leave-table" style="position:fixed;top:10px;left:10px;z-index:10000;background:rgba(0,0,0,0.6);" class="btn ghost small">⬅️ Leave Table</button>`;
+      <button type="button" id="leave-table" style="position:fixed;top:10px;left:10px;z-index:100;background:rgba(0,0,0,0.6);" class="btn ghost small">⬅️ Leave Table</button>
+      <button type="button" id="close-table" title="Close this table. You forfeit the game to your opponent." style="position:fixed;top:10px;right:14px;z-index:100;background:rgba(0,0,0,0.6);" class="btn danger small">✖️ Close Table</button>`;
     document.body.appendChild(overlay);
 
-    let sidebarOpen = true;
-    try { sidebarOpen = localStorage.getItem("mtg-sidebar") !== "0"; } catch { sidebarOpen = true; }
-    function applySidebar() {
+    let barOpen = true;
+    try { barOpen = localStorage.getItem("mtg-bottombar") !== "0"; } catch { barOpen = true; }
+    function applyBar() {
       const root = document.getElementById("table-root");
-      const btn = document.getElementById("sidebar-toggle");
-      if (root) root.classList.toggle("sidebar-shut", !sidebarOpen);
+      const btn = document.getElementById("bar-toggle");
+      if (root) root.classList.toggle("bar-shut", !barOpen);
       if (btn) {
-        btn.textContent = sidebarOpen ? "⟩" : "⟨";
-        btn.title = sidebarOpen ? "Hide the side panel" : "Show the side panel";
+        btn.textContent = barOpen ? "⌄" : "⌃";
+        btn.title = barOpen ? "Hide the action bar" : "Show the action bar";
       }
     }
-    applySidebar();
-    const sideBtn = document.getElementById("sidebar-toggle");
+    applyBar();
+    const sideBtn = document.getElementById("bar-toggle");
     if (sideBtn) {
       sideBtn.onclick = () => {
-        sidebarOpen = !sidebarOpen;
-        try { localStorage.setItem("mtg-sidebar", sidebarOpen ? "1" : "0"); } catch {}
-        applySidebar();
+        barOpen = !barOpen;
+        try { localStorage.setItem("mtg-bottombar", barOpen ? "1" : "0"); } catch {}
+        applyBar();
       };
     }
     function leaveMatch(openLobby) {
@@ -57,6 +59,25 @@
     }
     const leaveBtn = document.getElementById("leave-table");
     if (leaveBtn) leaveBtn.onclick = () => leaveMatch(false);
+
+    const closeBtn = document.getElementById("close-table");
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        const who = state && state.seats && state.seats[state.you] ? state.seats[state.you].name : "You";
+        const live = state && state.started && !state.ended;
+        const msg = live
+          ? `Close the table?\n\nYou forfeit this game and ${state.seats[1 - state.you] ? state.seats[1 - state.you].name : "your opponent"} takes the win${state.pot ? ` (${state.pot} 🪙 pot goes to them)` : ""}.`
+          : "Close and remove this table?";
+        if (!confirm(msg)) return;
+        if (state && state.started && !state.ended) {
+          sendAction("closeTable");
+          closeBtn.disabled = true;
+        } else {
+          // Unstarted: no forfeit to send, just drop it through the same path.
+          sendAction("closeTable");
+        }
+      };
+    }
 
     let state = null;
     let hovered = null;
@@ -117,6 +138,7 @@
       if (state.you !== defenderSeat()) return false;
       if (!mine || c._zone !== "battlefield") return false;
       if (!isCreature(c) || c.tapped) return false;
+      if (state.combat.attackers && state.combat.attackers.some((a) => a.blockedBy === c.iid)) return false;
       return true;
     }
     function isInstant(c) {
@@ -420,14 +442,47 @@
       el.classList.toggle("warning", rem <= 5);
     }
 
+    function effectivePt(c, seat) {
+      if (!c || c.power == null) return null;
+      let p = parseInt(c.power, 10);
+      let t = parseInt(c.toughness, 10);
+      const isStar = c.power === "*" || c.toughness === "*";
+      if (isNaN(p) || isNaN(t)) {
+        const text = `${c.name || ""} ${c.type_line || ""} ${c.oracle_text || ""}`.toLowerCase();
+        if (text.includes("serra avatar") || text.includes("equal to your life total")) {
+          const life = seat ? (Number(seat.life) || 0) : 20;
+          if (isNaN(p)) p = life;
+          if (isNaN(t)) t = life;
+        } else if (text.includes("equal to the number of cards in your hand")) {
+          const cnt = seat && Array.isArray(seat.zones?.hand) ? seat.zones.hand.length : 0;
+          if (isNaN(p)) p = cnt;
+          if (isNaN(t)) t = cnt;
+        } else if (text.includes("equal to the number of creatures you control")) {
+          const cnt = seat && Array.isArray(seat.zones?.battlefield) ? seat.zones.battlefield.filter(isCreature).length : 0;
+          if (isNaN(p)) p = cnt;
+          if (isNaN(t)) t = cnt;
+        } else if (text.includes("equal to the number of lands you control")) {
+          const cnt = seat && Array.isArray(seat.zones?.battlefield) ? seat.zones.battlefield.filter(isLand).length : 0;
+          if (isNaN(p)) p = cnt;
+          if (isNaN(t)) t = cnt;
+        }
+      }
+      const plus = (c.counters && c.counters.p1p1) || 0;
+      const minus = (c.counters && c.counters.m1m1) || 0;
+      return {
+        p: Math.max(0, (isNaN(p) ? 0 : p) + plus - minus),
+        t: Math.max(0, (isNaN(t) ? 0 : t) + plus - minus),
+        isStar,
+      };
+    }
+
     function combatTallyHTML(my) {
       const atks = (my.zones.battlefield || []).filter((c) => attacking.has(c.iid));
       if (!atks.length) return `<span class="combat-tally">(0 attacking · Click creature to attack)</span>`;
       let tot = 0;
       atks.forEach((c) => {
-        const p = parseInt(c.power, 10);
-        const p1 = (c.counters && c.counters.p1p1) || 0;
-        tot += Math.max(0, (isNaN(p) ? 1 : p) + p1);
+        const pt = effectivePt(c, my);
+        tot += pt ? pt.p : 0;
       });
       return `<span class="combat-tally">(${atks.length} attacking for <b>${tot}</b> total damage)</span>`;
     }
@@ -703,9 +758,10 @@
     }
 
     function renderCard(c, cls = "") {
+      const ptInfo = effectivePt(c, c._seatObj);
       const pt =
-        c.power != null
-          ? `<span class="badge">${c.power}/${c.toughness}</span>`
+        ptInfo
+          ? `<span class="badge ${ptInfo.isStar ? "star-badge" : ""}">${ptInfo.p}/${ptInfo.t}</span>`
           : c.loyalty != null
             ? `<span class="badge">${c.loyalty}</span>`
             : "";
@@ -716,6 +772,7 @@
       const down = c.faceDown || c.hidden ? "face-down" : "";
       const sick = c._zone === "battlefield" && isSick(c) ? "sick" : "";
       const atk = c._isAttacker || attacking.has(c.iid) ? "attacking" : "";
+      const blocked = c._isBlocked ? "blocked" : "";
       const canAtk = c._canAttack ? "can-attack" : "";
       const picked = c._attackPicked ? "attack-picked" : "";
       const canBlk = c._canBlock ? "can-block" : "";
@@ -739,7 +796,7 @@
         c._enchanted ? `<i class="ench">✨ Enchanted</i>` : "",
         extra ? `<i class="over">+${handMax()}</i>` : "",
       ].filter(Boolean).join("");
-      return `<div class="mtg-card ${cls} ${tapped} ${down} ${sick} ${atk} ${canAtk} ${picked} ${canBlk} ${blkTgt} ${blocking} ${ench} ${aura} ${extra} ${castable}"
+      return `<div class="mtg-card ${cls} ${tapped} ${down} ${sick} ${atk} ${blocked} ${canAtk} ${picked} ${canBlk} ${blkTgt} ${blocking} ${ench} ${aura} ${extra} ${castable}"
         data-iid="${c.iid}" data-zone="${c._zone || ""}" data-seat="${c.ownerSeat}"
         style="${c._style || ""}">
         <img src="${cardImg(c)}" alt="${escapeHtml(c.name || "")}" />
@@ -750,21 +807,25 @@
 
     function placeBattlefield(cards, mine) {
       const enchanted = enchantedSet();
+      const s = mine ? (state.seats[state.you] || state.seats[0]) : (state.seats.find((st, i) => i !== state.you) || state.seats[1]);
       return (cards || [])
         .map((c) => {
           const declared = state.combat && state.combat.attackers.find((a) => a.iid === c.iid);
           const picked = attackPick.has(c.iid);
           const atk = !!(declared || picked);
           const assigned = state.combat && state.combat.attackers.find((a) => a.blockedBy === c.iid);
+          const isBlocked = declared && !!declared.blockedBy;
           const view = { ...c, _zone: "battlefield" };
           const rot = c.tapped ? " rotate(88deg)" : atk ? " translateY(-12px)" : "";
           const copy = {
             ...view,
+            _seatObj: s,
             _enchanted: enchanted.has(c.iid),
             _canAttack: canAttack(view, mine),
             _attackPicked: picked,
             _canBlock: canBlock(view, mine),
             _isAttacker: atk,
+            _isBlocked: isBlocked,
             _blockTarget: !!(declared && state.combat.step === "blockers" && state.you === defenderSeat()),
             _blocking: blockPick === c.iid || !!assigned,
             _blockLabel: declared && declared.blockerName
@@ -811,6 +872,9 @@
       const meSeat = you >= 0 ? state.seats[you] : null;
       const opp = state.seats.find((s, i) => i !== you) || state.seats[1];
       const my = meSeat || state.seats[0];
+      const activeSeatIsOpp = opp && state.activeSeat === opp.seat;
+      const activeSeatIsMy = my && state.activeSeat === my.seat;
+      const activeName = state.seats[state.activeSeat]?.name || (state.activeSeat === 0 ? "Player 1" : "Player 2");
 
       const playmat = $(".playmat");
       playmat.classList.toggle("combat-on", state.phase === "combat");
@@ -832,7 +896,7 @@
           <div class="statrow ${mineTurn ? "your-turn" : ""}">
             ${lifeBox(opp, false)}
             ${lifeBox(my, true)}
-            <div class="phase-timer-pill ${!isTimerOn(state) ? "timer-off" : (timerState.remaining <= 5 ? "warning" : "")}" id="phase-timer" title="${!isTimerOn(state) ? "Casual Untimed Mode (Click to enable timer)" : "Phase Time Remaining (Click to disable timer)"}">
+            <div class="phase-timer-pill ${!isTimerOn(state) ? "timer-off" : (timerState.remaining <= 5 ? "warning" : "")}" id="phase-timer">
               <span>⏱️</span>
               <span id="phase-timer-sec">${!isTimerOn(state) ? "Untimed" : `${timerState.remaining}s`}</span>
               <div class="timer-bar"><div id="phase-timer-bar" class="timer-fill" style="width:${!isTimerOn(state) ? "100%" : `${Math.max(0, Math.min(100, (timerState.remaining / (timerState.total || 35)) * 100))}%`}"></div></div>
@@ -840,17 +904,17 @@
             <div class="phases">
               ${PHASES.map((p) => `<button class="phase ${state.phase === p ? "on" : ""} ${mineTurn ? "" : "locked"}" data-phase="${p}">${PHASE_LABEL[p]}</button>`).join("")}
             </div>
-            <span class="chip ${mineTurn ? "your-turn" : ""}">T${state.turn}${mineTurn ? " · YOUR TURN" : " · " + escapeHtml(state.seats[state.activeSeat]?.name || "")}</span>
+            <span class="chip active-turn ${mineTurn ? "your-turn" : "opp-turn"}">T${state.turn}${mineTurn ? " · YOUR TURN" : " · " + escapeHtml(activeName)}</span>
             ${state.pot > 0 || state.wager > 0 ? `
-              <div class="pot-display" title="Match Pot: ${(state.pot || (state.wager * 2)).toLocaleString()} 🪙 Gold (${(state.wager || 0).toLocaleString()} 🪙 / player)">
+              <div class="pot-display">
                 <span class="pot-badge">🏆 POT</span>
                 <span class="pot-amount">${(state.pot || (state.wager * 2)).toLocaleString()} 🪙</span>
               </div>
             ` : ""}
           </div>
           ${myHandN > handMax() ? `<div class="hand-warn">Hand ${myHandN} (usual max ${handMax()}) — you can still play cards</div>` : ""}
-          <div class="hand-row opp ${!mineTurn ? "active-side" : ""}">${handCards(opp.zones.hand, false)}</div>
-          <div class="bf opp ${!mineTurn ? "active-side" : ""}" data-drop="battlefield" data-seat="${opp.seat}">
+          <div class="hand-row opp ${activeSeatIsOpp ? "active-side" : ""}">${handCards(opp.zones.hand, false)}</div>
+          <div class="bf opp ${activeSeatIsOpp ? "active-side" : ""}" data-drop="battlefield" data-seat="${opp.seat}">
             <span class="bf-label">${escapeHtml(opp.name || "Opponent")} battlefield</span>
             ${placeBattlefield(opp.zones.battlefield, false)}
           </div>
@@ -861,11 +925,11 @@
                   .join("") + `<button class="btn gold small" data-act="resolve">Resolve</button>`
               : combatBannerHTML(you)}
           </div>
-          <div class="bf you ${mineTurn ? "active-side" : ""}" data-drop="battlefield" data-seat="${my.seat}">
+          <div class="bf you ${activeSeatIsMy ? "active-side" : ""}" data-drop="battlefield" data-seat="${my.seat}">
             <span class="bf-label">Your battlefield</span>
             ${placeBattlefield(my.zones.battlefield, true)}
           </div>
-          <div class="hand-row you ${mineTurn ? "active-side" : ""}" data-drop="hand" data-seat="${my.seat}">${handCards(my.zones.hand, true)}</div>
+          <div class="hand-row you ${activeSeatIsMy ? "active-side" : ""}" data-drop="hand" data-seat="${my.seat}">${handCards(my.zones.hand, true)}</div>
           <div class="zones left">
             ${zoneBtn("command", my)}
             ${zoneBtn("library", my)}
@@ -885,56 +949,203 @@
         }
       }
 
-      $(".sidebar").innerHTML = `
-        <div class="pad">
-          <h3>${escapeHtml(state.name)} · ${escapeHtml(state.code)}</h3>
-          <div class="actions">
-            ${state.ended ? `<button class="btn gold pulse" data-act="rematch" style="grid-column: 1 / -1; font-weight: 700; padding: 10px; font-size: 14px">⚔️ Rematch</button>` : ""}
-            ${state.phase === "combat" ? `<button class="btn gold pulse" data-act="passCombat" ${mineTurn ? "" : "disabled"}>⏭️ Pass Combat</button>` : `<button class="btn gold" data-act="nextPhase" ${mineTurn ? "" : "disabled"}>💫 Next phase</button>`}
-            <button class="btn ${mineTurn ? "gold pulse" : ""}" data-act="passTurn" ${mineTurn ? "" : "disabled"}>✨ Pass turn</button>
-            <button class="btn gold" data-act="attack" ${mineTurn && !(state.combat && state.combat.step === "blockers") ? "" : "disabled"}>⚔️ Attack</button>
-            <button class="btn" data-act="draw">🎴 Draw</button>
-            <button class="btn" data-act="untapAll">🌿 Untap all</button>
-            <button class="btn" data-act="shuffle">🔮 Shuffle</button>
-            <button class="btn" data-act="mulligan">🔄 Mulligan</button>
-            <button class="btn" data-act="token">🐣 Token</button>
-            <button class="btn" data-act="roll">🎲 d20</button>
-            <button class="btn" data-act="mill">🍂 Mill</button>
-            <button class="btn ghost" data-act="interrupt">⚡ Priority</button>
-            <button class="btn gold" data-act="declareWin">👑 Award Win</button>
-            <button class="btn danger" data-act="concede">🏳️ Concede</button>
+      // ── MMO-style bottom action bar ────────────────────────────────
+      // Buttons are icon "slots" like an MMO action bar: big glyph with a
+      // small label beneath. Data lives in data-act so the existing
+      // `$$("[data-act]")` wiring below keeps working unchanged.
+      const slot = (act, ico, lbl, cls = "", dis = false) =>
+        `<button type="button" class="ab-slot ${cls}" data-act="${act}" ${dis ? "disabled" : ""}>
+           <span class="ab-ico" aria-hidden="true">${ico}</span>
+           <span class="ab-lbl">${escapeHtml(lbl)}</span>
+         </button>`;
+
+      const canAttack = mineTurn && !(state.combat && state.combat.step === "blockers");
+      const bar = [
+        state.ended
+          ? slot("rematch", "⚔️", "Rematch", "gold pulse")
+          : state.phase === "combat"
+            ? slot("passCombat", "⏭️", "Pass combat", "gold pulse", !mineTurn)
+            : slot("nextPhase", "💫", "Next phase", "gold", !mineTurn),
+        slot("passTurn", "✨", "Pass turn", mineTurn ? "gold pulse" : "", !mineTurn),
+        slot("attack", "⚔️", "Attack", "gold", !canAttack),
+        slot("draw", "🎴", "Draw"),
+        `<button type="button" class="ab-slot" data-act-open-counters>
+           <span class="ab-ico" aria-hidden="true">🖊️</span>
+           <span class="ab-lbl">Counters</span>
+         </button>`,
+        slot("untapAll", "🌿", "Untap all"),
+        slot("shuffle", "🔮", "Shuffle"),
+        slot("token", "🐣", "Token"),
+        slot("roll", "🎲", "d20"),
+        slot("bell", "🔔", "Bell"),
+        slot("mill", "🍂", "Mill"),
+        slot("mulligan", "🔄", "Mulligan"),
+        slot("interrupt", "⚡", "Priority", "ghost"),
+        slot("concede", "🏳️", "Concede", "danger"),
+      ].join("");
+
+      $(".bottombar").innerHTML = `
+        <div class="bb-left">
+          <div class="bb-title">
+            <span class="bb-name">${escapeHtml(state.name)}</span>
+            <span class="bb-code">${escapeHtml(state.code)}</span>
           </div>
-          <h3 style="margin-top:10px">Counters</h3>
-          <div class="counter-tray">
-            <button type="button" class="ctr-chip" data-ctr="p1p1">+1/+1</button>
-            <button type="button" class="ctr-chip" data-ctr="m1m1">−1/−1</button>
-            <button type="button" class="ctr-chip" data-ctr="loyalty">Loyalty</button>
-            <button type="button" class="ctr-chip" data-ctr="charge">Charge</button>
-            <button type="button" class="ctr-chip" data-ctr="stun">Stun</button>
-            <button type="button" class="ctr-chip" data-ctr="kill">Kill</button>
-            <button type="button" class="ctr-chip" data-ctr="time">Time</button>
-            <button type="button" class="ctr-chip" data-ctr="flood">Flood</button>
+          <div class="bb-opts">
+            <label class="bb-opt">
+              <input type="checkbox" id="timer-toggle" ${isTimerOn(state) ? "checked" : ""} />
+              <span>⏱️ Timer</span>
+            </label>
+            <label class="bb-opt">
+              <input type="checkbox" id="auto-steps" ${autoStepsOn ? "checked" : ""} />
+              <span>⚙️ Auto</span>
+            </label>
           </div>
-          <label class="muted" style="display:flex;gap:8px;align-items:center;margin-top:6px">
-            <input type="checkbox" id="timer-toggle" ${isTimerOn(state) ? "checked" : ""} /> ⏱️ Turn countdown timer
-          </label>
-          <label class="muted" style="display:flex;gap:8px;align-items:center;margin-top:4px">
-            <input type="checkbox" id="auto-steps" ${autoStepsOn ? "checked" : ""} /> Auto step turns
-          </label>
-          <p class="help faint"><kbd>D</kbd> draw <kbd>T</kbd> tap <kbd>G</kbd> gy <kbd>E</kbd> exile <kbd>H</kbd> hand <kbd>N</kbd> phase <kbd>P</kbd> pass</p>
+          <div class="bb-keys"><kbd>D</kbd>draw <kbd>T</kbd>tap <kbd>G</kbd>gy <kbd>E</kbd>exile <kbd>H</kbd>hand <kbd>N</kbd>phase <kbd>P</kbd>pass</div>
         </div>
-        <div class="logbox">${state.log.map((l) => `<div>${escapeHtml(l.text)}</div>`).join("")}</div>
-        <div class="chatbox">${state.chat.map((c) => `<div><b>${escapeHtml(c.name)}:</b> ${escapeHtml(c.text)}</div>`).join("")}</div>
-        <form class="chat-in" id="chat-form"><input name="text" placeholder="Chat" autocomplete="off" /><button class="btn small">Send</button></form>
+
+        <div class="bb-slots" role="toolbar" aria-label="Table actions">${bar}</div>
+
+        <div class="bb-right">
+          <button type="button" class="bb-aux ffxi-log-btn" data-bar-tab="console">💬<span>Chat & Log</span></button>
+        </div>
       `;
-      const logbox = $(".logbox");
-      logbox.scrollTop = logbox.scrollHeight;
-      $("#chat-form").onsubmit = (e) => {
-        e.preventDefault();
-        const inp = e.target.text;
-        if (inp.value.trim()) sendAction("chat", { text: inp.value.trim() });
-        inp.value = "";
+
+      // ── FFXI Classic Combined Log + Chat Window at bottom ─────
+      const prevConsole = document.getElementById("table-console");
+      const wasOpen = prevConsole ? prevConsole.classList.contains("open") : false;
+      let activeTcTab = prevConsole ? (prevConsole.dataset.activeTab || "all") : "all";
+
+      const allEntries = [];
+      (state.log || []).forEach((l, idx) => {
+        allEntries.push({
+          type: "log",
+          time: l.at || idx,
+          text: l.text || String(l),
+          seat: l.seat
+        });
+      });
+      (state.chat || []).forEach((c, idx) => {
+        allEntries.push({
+          type: "chat",
+          time: c.at || idx,
+          name: c.name || "Wizard",
+          text: c.text || "",
+          seat: c.seat
+        });
+      });
+      allEntries.sort((a, b) => a.time - b.time);
+
+      function renderLogRows(tab) {
+        const filtered = allEntries.filter(e => {
+          if (tab === "chat") return e.type === "chat";
+          if (tab === "log") return e.type === "log";
+          return true;
+        });
+        if (!filtered.length) {
+          return `<div class="muted" style="padding:10px;text-align:center;font-style:italic">No messages yet.</div>`;
+        }
+        return filtered.map(e => {
+          const timeStr = typeof e.time === "number" && e.time > 1000000000000
+            ? new Date(e.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : "";
+          const timeSpan = timeStr ? `<span class="ffxi-log-time">[${timeStr}]</span>` : "";
+          if (e.type === "chat") {
+            return `
+              <div class="ffxi-log-row ffxi-ch-say">
+                ${timeSpan}
+                <span class="ffxi-badge-channel ffxi-badge-say">[Say]</span>
+                <b class="ffxi-sender">&lt;${escapeHtml(e.name)}&gt;</b>
+                <span class="ffxi-text">${escapeHtml(e.text)}</span>
+              </div>
+            `;
+          } else {
+            return `
+              <div class="ffxi-log-row ffxi-ch-combat">
+                ${timeSpan}
+                <span class="ffxi-badge-channel ffxi-badge-combat">[Log]</span>
+                <span class="ffxi-text">${escapeHtml(e.text)}</span>
+              </div>
+            `;
+          }
+        }).join("");
+      }
+
+      const wasCollapsed = prevConsole ? prevConsole.classList.contains("collapsed") : false;
+      const console_ = document.createElement("div");
+      console_.id = "table-console";
+      console_.className = `table-console ffxi-window open ${wasCollapsed ? "collapsed" : ""}`;
+      console_.dataset.activeTab = activeTcTab;
+      console_.innerHTML = `
+        <div class="tc-head ffxi-header">
+          <span class="ffxi-title">💬 <b>TABLE CHAT & LOG</b></span>
+          <div class="ffxi-tabs">
+            <button type="button" class="ffxi-tab ${activeTcTab === "all" ? "active" : ""}" data-tc-tab="all">All (Combined)</button>
+            <button type="button" class="ffxi-tab ${activeTcTab === "chat" ? "active" : ""}" data-tc-tab="chat">💬 Chat</button>
+            <button type="button" class="ffxi-tab ${activeTcTab === "log" ? "active" : ""}" data-tc-tab="log">📜 Game Log</button>
+          </div>
+          <span class="tc-spacer"></span>
+          <button type="button" class="tc-x" data-tc-close>―</button>
+        </div>
+        <div class="ffxi-log-stream" id="table-log-stream">
+          ${renderLogRows(activeTcTab)}
+        </div>
+        <form class="ffxi-input-bar" id="chat-form">
+          <span class="ffxi-prompt-tag">[Say] ▶</span>
+          <input name="text" class="ffxi-chat-input" placeholder="Say something to the table…" autocomplete="off" maxlength="280" />
+          <button type="submit" class="ffxi-send-btn">Send</button>
+        </form>
+      `;
+
+      const root0 = document.getElementById("table-root");
+      const bar0 = document.querySelector(".bottombar");
+      document.querySelectorAll("#table-console").forEach((old) => old.remove());
+      const host = bar0 ? bar0.parentNode : root0;
+      if (host && bar0) host.insertBefore(console_, bar0);
+      else if (host) host.appendChild(console_);
+
+      const setTab = (tab) => {
+        activeTcTab = tab;
+        console_.dataset.activeTab = tab;
+        console_.querySelectorAll("[data-tc-tab]").forEach((t) => t.classList.toggle("active", t.dataset.tcTab === tab));
+        const stream = console_.querySelector("#table-log-stream");
+        if (stream) {
+          stream.innerHTML = renderLogRows(tab);
+          stream.scrollTop = stream.scrollHeight;
+        }
+        if (tab === "chat") {
+          const inp = console_.querySelector('input[name="text"]');
+          if (inp) inp.focus();
+        }
       };
+
+      console_.querySelectorAll("[data-tc-tab]").forEach((t) => (t.onclick = () => setTab(t.dataset.tcTab)));
+
+      const toggleCollapse = () => {
+        console_.classList.toggle("collapsed");
+      };
+      const closeBtn = console_.querySelector("[data-tc-close]");
+      if (closeBtn) closeBtn.onclick = toggleCollapse;
+      $$("[data-bar-tab]").forEach((b) => (b.onclick = toggleCollapse));
+
+      const streamEl = console_.querySelector("#table-log-stream");
+      if (streamEl) streamEl.scrollTop = streamEl.scrollHeight;
+
+      const chatForm = $("#chat-form");
+      if (chatForm) {
+        chatForm.onsubmit = (e) => {
+          e.preventDefault();
+          const inp = chatForm.querySelector('input[name="text"]');
+          if (inp && inp.value.trim()) sendAction("chat", { text: inp.value.trim() });
+          if (inp) inp.value = "";
+        };
+        const chatInput = chatForm.querySelector('input[name="text"]');
+        if (chatInput) {
+          chatInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) e.stopPropagation();
+            if (e.key === "Escape") chatInput.blur();
+          });
+        }
+      }
       $$("[data-act]").forEach((b) => {
         b.onclick = () => handleAct(b.dataset.act);
       });
@@ -957,7 +1168,8 @@
           }
         };
       }
-      bindCounterTray();
+      const openCtrBtn = $("[data-act-open-counters]");
+      if (openCtrBtn) openCtrBtn.onclick = () => openCounterDialog();
       $$("[data-phase]").forEach((b) => {
         b.onclick = () => {
           if (!myTurn()) {
@@ -971,13 +1183,14 @@
 
     function lifeBox(s, mine) {
       if (!s) return "";
-      return `<div class="life-box" data-seat="${s.seat}">
-        <span class="who">${escapeHtml(s.name || "Open")}${mine ? " (you)" : ""}</span>
+      const isTurn = state && state.started && !state.ended && state.activeSeat === s.seat;
+      return `<div class="life-box ${isTurn ? "active-turn" : ""}" data-seat="${s.seat}">
+        <span class="who">${escapeHtml(s.name || "Open")}${mine ? " (you)" : ""}${isTurn ? ' <span class="turn-badge">TURN</span>' : ""}</span>
         <button class="btn small ghost" data-life="-1">−</button>
         <span class="n">💖 ${s.life}</span>
         <button class="btn small ghost" data-life="1">+</button>
-        <span class="faint" title="poison">☠ ${s.poison}</span>
-        <span class="faint" title="energy">⚡ ${s.energy}</span>
+        <span class="faint">☠ ${s.poison}</span>
+        <span class="faint">⚡ ${s.energy}</span>
       </div>`;
     }
 
@@ -1404,12 +1617,7 @@
       }
       menu.innerHTML = `
         <div class="menu-label">Counters${escapeHtml(ctrSummary)}</div>
-        <button class="ctr-act" data-m="p1">+1/+1</button>
-        <button class="ctr-act" data-m="p1_dec">−1/+1</button>
-        <button class="ctr-act" data-m="m1">−1/−1</button>
-        <button class="ctr-act" data-m="clear">Clear counters</button>
-        <button class="ctr-act" data-m="loy">Loyalty (+1)</button>
-        <button class="ctr-act" data-m="loy_dec">Loyalty (−1)</button>
+        <button class="ctr-act" data-m="dialog">🖊️ Counters…</button>
         <div class="sep"></div>
         <button data-m="tap">Tap / Untap</button>
         <button data-m="flip">Flip</button>
@@ -1431,12 +1639,11 @@
         const k = btn.dataset.m;
         if (!k) return;
         if (!isMine(iid)) return;
-        if (k === "p1") sendAction("counters", { iid, counter: "p1p1", delta: 1 });
-        if (k === "p1_dec") sendAction("counters", { iid, counter: "p1p1", delta: -1 });
-        if (k === "m1") sendAction("counters", { iid, counter: "m1m1", delta: 1 });
-        if (k === "clear") sendAction("counters", { iid, clear: true });
-        if (k === "loy") sendAction("counters", { iid, counter: "loyalty", delta: 1 });
-        if (k === "loy_dec") sendAction("counters", { iid, counter: "loyalty", delta: -1 });
+        if (k === "dialog") {
+          menu.hidden = true;
+          openCounterDialog(iid);
+          return;
+        }
         if (k === "tap") sendAction("tap", { iid });
         if (k === "flip") sendAction("flip", { iid });
         if (k === "fd") sendAction("faceDown", { iid, faceDown: true });
@@ -1467,66 +1674,112 @@
 
     function openZone(seat, zone) {
       const s = state.seats[seat];
-      const list = s.zones[zone];
+      const list = s.zones[zone] || [];
       if (list && list.hidden) {
         toast(`${s.name}'s ${zone} (${list.count})`);
         return;
       }
-      openModal(`<h2>${escapeHtml(s.name)} · ${zone} (${(list || []).length})</h2>
-        <div class="zone-grid">${(list || [])
-          .map(
-            (c, i) => `<div class="result" data-iid="${c.iid}">
-              <img src="${cardImg(c)}" alt="${escapeHtml(c.name)}" />
-              <div class="meta"><b>${escapeHtml(c.name || "card")}</b></div>
+      const isLibrary = zone === "library";
+      let libAllRevealed = false;
+      const revealedIids = new Set();
+
+      function getZoneModalHTML() {
+        const toolbar = isLibrary
+          ? `<div class="zone-modal-toolbar">
+              <button type="button" class="btn gold small" id="btn-toggle-reveal-lib">
+                ${libAllRevealed ? "🔒 Hide / Blur Library Cards" : "👁️ Reveal Library Cards"}
+              </button>
+              <span class="muted" style="font-size:12px;">${libAllRevealed ? "All cards revealed" : "Cards are blurred out until revealed"}</span>
             </div>`
-          )
-          .join("")}</div>
-        <p class="muted">Click a card to draw it to the battlefield. Close to shuffle the library if you were browsing it.</p>
-        <button class="btn" id="close-m">Close</button>`);
-      $("#close-m").onclick = closeModal;
-      $$(".result[data-iid]").forEach((el) => {
-        el.onclick = () => {
-          if (seat !== state.you) {
-            toast("You can only play your own cards");
-            return;
-          }
-          sendAction("move", { iid: el.dataset.iid, toZone: "battlefield", x: 0.5, y: 0.45 });
-          closeModal();
-        };
-      });
-      if (zone === "library" && seat === state.you) {
-        /* browsing a library — shuffle when closed is Table Commander behaviour */
-        const prev = closeModal;
+          : "";
+
+        const gridHTML = list.map((c, i) => {
+          const isRevealed = !isLibrary || libAllRevealed || revealedIids.has(c.iid);
+          return `<div class="result ${isRevealed ? "" : "blurred"}" data-iid="${c.iid}">
+            <img src="${cardImg(c)}" alt="${isRevealed ? escapeHtml(c.name || "") : "Card"}" />
+            <div class="meta"><b>${isRevealed ? escapeHtml(c.name || "card") : `Card #${i + 1}`}</b></div>
+            ${!isRevealed ? `<button type="button" class="btn small ghost btn-reveal-card" data-reveal-iid="${c.iid}">👁️ Reveal</button>` : ""}
+          </div>`;
+        }).join("");
+
+        return `<h2>${escapeHtml(s.name)} · ${zone} (${list.length})</h2>
+          ${toolbar}
+          <div class="zone-grid" id="zone-modal-grid">${gridHTML}</div>
+          <p class="muted">Click a card to draw it to the battlefield. Close to shuffle the library if you were browsing it.</p>
+          <button class="btn" id="close-m">Close</button>`;
+      }
+
+      openModal(getZoneModalHTML());
+      bindZoneModalEvents();
+
+      function bindZoneModalEvents() {
+        const closeBtn = $("#close-m");
+        if (closeBtn) closeBtn.onclick = closeModal;
+
+        const toggleBtn = $("#btn-toggle-reveal-lib");
+        if (toggleBtn) {
+          toggleBtn.onclick = () => {
+            libAllRevealed = !libAllRevealed;
+            const modal = $("#modal");
+            if (modal) {
+              modal.innerHTML = getZoneModalHTML();
+              bindZoneModalEvents();
+            }
+          };
+        }
+
+        $$(".btn-reveal-card").forEach((btn) => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            const iid = btn.dataset.revealIid;
+            revealedIids.add(iid);
+            const parent = btn.closest(".result");
+            if (parent) {
+              parent.classList.remove("blurred");
+              const found = list.find((x) => x.iid === iid);
+              if (found) {
+                const meta = parent.querySelector(".meta b");
+                if (meta) {
+                  meta.textContent = found.name || "card";
+                  meta.style.filter = "none";
+                }
+              }
+              btn.remove();
+            }
+          };
+        });
+
+        $$(".result[data-iid]").forEach((el) => {
+          el.onclick = () => {
+            const iid = el.dataset.iid;
+            const isRevealed = !isLibrary || libAllRevealed || revealedIids.has(iid);
+            if (!isRevealed) {
+              revealedIids.add(iid);
+              el.classList.remove("blurred");
+              const found = list.find((x) => x.iid === iid);
+              if (found) {
+                const meta = el.querySelector(".meta b");
+                if (meta) {
+                  meta.textContent = found.name || "card";
+                  meta.style.filter = "none";
+                }
+              }
+              el.querySelector(".btn-reveal-card")?.remove();
+              return;
+            }
+            if (seat !== state.you) {
+              toast("You can only play your own cards");
+              return;
+            }
+            sendAction("move", { iid: el.dataset.iid, toZone: "battlefield", x: 0.5, y: 0.45 });
+            closeModal();
+          };
+        });
       }
     }
 
     function handleAct(act) {
       if (act === "rematch") sendAction("rematch");
-      if (act === "declareWin") {
-        const s0 = state.seats[0];
-        const s1 = state.seats[1];
-        const potTxt = (state.pot || (state.wager * 2) || 0).toLocaleString();
-        openModal(`<h2>👑 Award Match Victory</h2>
-          <p>Declare the winner of this match. The pot of <b>${potTxt} 🪙 Gold</b> will be awarded immediately.</p>
-          <div style="display:flex;flex-direction:column;gap:10px;margin:20px 0;">
-            <button class="btn gold" id="win-0" style="padding:12px;font-size:15px;text-align:left">
-              🏆 Award to <b>${escapeHtml(s0.name || "Player 1")}</b> (Seat 1)${s0.you ? " — You" : ""}
-            </button>
-            <button class="btn gold" id="win-1" style="padding:12px;font-size:15px;text-align:left">
-              🏆 Award to <b>${escapeHtml(s1.name || "Player 2")}</b> (Seat 2)${s1.you ? " — You" : ""}
-            </button>
-          </div>
-          <button class="btn ghost" id="close-m">Cancel</button>`);
-        $("#close-m").onclick = closeModal;
-        $("#win-0").onclick = () => {
-          sendAction("declareWinner", { winnerSeat: 0 });
-          closeModal();
-        };
-        $("#win-1").onclick = () => {
-          sendAction("declareWinner", { winnerSeat: 1 });
-          closeModal();
-        };
-      }
       if (act === "draw") sendAction("draw", { n: 1 });
       if (act === "untapAll") sendAction("untapAll");
       if (act === "shuffle") sendAction("shuffle");
@@ -1553,6 +1806,7 @@
         render();
       }
       if (act === "roll") sendAction("roll", { sides: 20, n: 1 });
+      if (act === "bell") sendAction("bell");
       if (act === "mill") sendAction("mill", { n: 1 });
       if (act === "interrupt") sendAction("interrupt");
       if (act === "concede") {
@@ -1722,39 +1976,295 @@
       }, 1200);
     }
 
-    function bindCounterTray() {
-      $$("[data-ctr]").forEach((el) => {
-        el.addEventListener("pointerdown", (e) => {
-          if (e.button !== 0) return;
-          e.preventDefault();
-          const kind = el.dataset.ctr;
-          const ghost = document.createElement("div");
-          ghost.className = "ctr-ghost";
-          ghost.textContent = el.textContent;
-          // Append to overlay so it's above z-index 9999
-          const overlay = document.getElementById("table-full-overlay") || document.body;
-          overlay.appendChild(ghost);
-          ghost.style.transform = "rotate(3deg) scale(1.05)";
-          ghost.style.transition = "transform 0.1s ease-out";
-          ghost.style.zIndex = "10000";
-          const move = (ev) => {
-            ghost.style.left = ev.clientX + 8 + "px";
-            ghost.style.top = ev.clientY + 8 + "px";
-          };
-          const up = (ev) => {
-            ghost.remove();
-            const hitCard = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".mtg-card[data-iid]");
-            if (hitCard && !String(hitCard.dataset.iid).startsWith("h")) {
-              sendAction("counters", { iid: hitCard.dataset.iid, counter: kind, delta: 1 });
-            }
-            window.removeEventListener("pointermove", move);
-            window.removeEventListener("pointerup", up);
-          };
-          move(e);
-          window.addEventListener("pointermove", move);
-          window.addEventListener("pointerup", up);
-        });
+    /* ==========================================================================
+       COUNTER DIALOG
+       A popup for adding/removing counters on a card. The drag-from-tray flow
+       already existed, but it could only ever add one at a time and needs a
+       mouse drag, so it was unusable for exact numbers and on touch devices.
+       This offers explicit -/+ steppers per counter type, plus a custom type.
+    ========================================================================== */
+    const CTR_STEPS = [1, 2, 3, 5, 10];
+    const CTR_KINDS = [
+      { id: "p1p1", label: "+1/+1" },
+      { id: "m1m1", label: "−1/−1" },
+      { id: "loyalty", label: "Loyalty" },
+      { id: "charge", label: "Charge" },
+      { id: "stun", label: "Stun" },
+      { id: "kill", label: "Kill" },
+      { id: "time", label: "Time" },
+      { id: "flood", label: "Flood" },
+    ];
+    let ctrDialog = null; // { iid, step } | null
+    let ctrPickMode = false; // no card chosen yet -> show the picker list
+
+    function ctrEnsureRoot() {
+      let el = document.getElementById("counter-dialog");
+      if (el) {
+        if (window.MTG?.bringToFront) window.MTG.bringToFront(el);
+        return el;
+      }
+      el = document.createElement("div");
+      el.id = "counter-dialog";
+      el.className = "ctr-dialog";
+      el.hidden = true;
+      if (window.MTG?.bringToFront) window.MTG.bringToFront(el);
+      // The panel is created once and only its innerHTML is replaced, so the
+      // backdrop click handler below survives every re-render.
+      el.innerHTML = '<div class="ctr-dialog-card" role="dialog" aria-label="Card counters"></div>';
+      // Mount on the table overlay so it stacks above the playmat (z 100050).
+      const host = document.getElementById("table-full-overlay") || document.body;
+      host.appendChild(el);
+      el.onclick = (e) => {
+        if (e.target === el) ctrClose();
+      };
+      return el;
+    }
+
+    function ctrClose() {
+      const el = ctrEnsureRoot();
+      el.hidden = true;
+      // Blank only the panel's contents — wiping el.innerHTML would destroy
+      // .ctr-dialog-card and the next open would crash.
+      const panel = el.querySelector(".ctr-dialog-card");
+      if (panel) panel.innerHTML = "";
+      ctrDialog = null;
+      ctrPickMode = false;
+    }
+
+    function ctrSummary(counters) {
+      return Object.entries(counters || {})
+        .map(([k, v]) =>
+          k === "p1p1" ? `+${v}/+${v}` : k === "m1m1" ? `−${v}/−${v}` : `${v} ${k}`
+        )
+        .join(", ");
+    }
+
+    // Cards the viewer is allowed to counter: anything on the battlefield,
+    // plus their own cards in the stack or hand.
+    function ctrEligibleCards() {
+      if (!state) return [];
+      const out = [];
+      const seen = new Set();
+      const collect = (zone, ownOnly) => {
+        for (const s of state.seats || []) {
+          const list = s.zones && s.zones[zone];
+          if (!Array.isArray(list)) continue;
+          for (const c of list) {
+            if (!c || !c.iid || seen.has(c.iid)) continue;
+            if (ownOnly && c.ownerSeat !== state.you) continue;
+            if (c.faceDown || c.hidden) continue;
+            seen.add(c.iid);
+            out.push({ card: c, zone });
+          }
+        }
+      };
+      collect("battlefield", false);
+      for (const c of state.stack || []) {
+        if (c && c.iid && !seen.has(c.iid) && c.ownerSeat === state.you && !c.faceDown) {
+          seen.add(c.iid);
+          out.push({ card: c, zone: "stack" });
+        }
+      }
+      collect("hand", true);
+      return out;
+    }
+
+    function ctrRenderPicker(root) {
+      const cards = ctrEligibleCards();
+      const head = `
+        <div class="ctr-dialog-head">
+          <div class="ctr-dialog-title">
+            <b>Add Counters</b>
+            <span class="muted">${cards.length ? "Pick a card" : "Nothing to counter yet"}</span>
+          </div>
+          <button type="button" class="ctr-dialog-close" data-ctr-close title="Close">✕</button>
+        </div>`;
+      const body = cards.length
+        ? `<div class="ctr-pick-list">${cards
+            .map(({ card, zone }) => {
+              const cs = card.counters && Object.keys(card.counters).length
+                ? `<span class="cs">${escapeHtml(ctrSummary(card.counters))}</span>`
+                : "";
+              return `<button type="button" class="ctr-pick" data-ctr-pick="${escapeHtml(card.iid)}">
+                <img src="${cardImg(card)}" alt="">
+                <span class="nm">${escapeHtml(card.name)}<div class="zn">${escapeHtml(zone)}</div></span>
+                ${cs}
+              </button>`;
+            })
+            .join("")}</div>`
+        : `<div class="ctr-empty">Put a card onto the battlefield,<br>then open this dialog again.</div>`;
+      root.querySelector(".ctr-dialog-card").innerHTML = head + body;
+      root.hidden = false;
+      root.querySelectorAll("[data-ctr-close]").forEach((b) => (b.onclick = ctrClose));
+      root.querySelectorAll("[data-ctr-pick]").forEach((b) => {
+        b.onclick = () => {
+          ctrDialog = { iid: b.dataset.ctrPick, step: (ctrDialog && ctrDialog.step) || 1 };
+          ctrPickMode = false;
+          ctrRender();
+        };
       });
+    }
+
+    function ctrRender() {
+      const root = ctrEnsureRoot();
+      if (!ctrDialog) {
+        root.hidden = true;
+        return;
+      }
+      if (ctrPickMode) {
+        ctrRenderPicker(root);
+        return;
+      }
+      const found = findInst(ctrDialog.iid);
+      if (!found) {
+        ctrPickMode = true;
+        ctrRender();
+        return;
+      }
+      const card = found.card;
+      const counters = card.counters || {};
+      const step = ctrDialog.step || 1;
+      // Show the built-in kinds plus any custom ones already on this card.
+      const kinds = CTR_KINDS.slice();
+      for (const k of Object.keys(counters)) {
+        if (!kinds.some((x) => x.id === k)) kinds.push({ id: k, label: k, custom: true });
+      }
+
+      root.querySelector(".ctr-dialog-card").innerHTML = `
+        <div class="ctr-dialog-head">
+          <img src="${cardImg(card)}" alt="">
+          <div class="ctr-dialog-title">
+            <b>${escapeHtml(card.name)}</b>
+            <span class="muted">${escapeHtml(found.zone)}</span>
+          </div>
+          <button type="button" class="ctr-dialog-close" data-ctr-close title="Close">✕</button>
+        </div>
+
+        <div class="ctr-step-row">
+          <span class="lbl">Step</span>
+          ${CTR_STEPS.map(
+            (s) =>
+              `<button type="button" class="ctr-step ${s === step ? "on" : ""}" data-ctr-step="${s}">${s}</button>`
+          ).join("")}
+        </div>
+
+        <div class="ctr-rows">
+          ${kinds
+            .map((k) => {
+              const v = counters[k.id] || 0;
+              return `<div class="ctr-row ${v ? "has" : ""}">
+                <span class="ctr-row-name">${escapeHtml(k.label)}</span>
+                <span class="ctr-row-ctl">
+                  <button type="button" class="ctr-btn" data-ctr-dec="${escapeHtml(k.id)}" title="Remove ${step} ${escapeHtml(k.label)}" ${v ? "" : "disabled"}>−</button>
+                  <input class="ctr-num" type="number" inputmode="numeric" min="0" max="999" step="1"
+                         value="${v}" data-ctr-num="${escapeHtml(k.id)}"
+                         aria-label="${escapeHtml(k.label)} count" />
+                  <button type="button" class="ctr-btn" data-ctr-inc="${escapeHtml(k.id)}" title="Add ${step} ${escapeHtml(k.label)}">+</button>
+                </span>
+              </div>`;
+            })
+            .join("")}
+        </div>
+
+        <div class="ctr-custom">
+          <input type="text" id="ctr-custom-input" placeholder="Custom counter, e.g. &quot;shield&quot;" maxlength="24" />
+          <button type="button" class="btn small" data-ctr-addcustom>Add</button>
+        </div>
+
+        <div class="ctr-dialog-foot">
+          <span class="ctr-hint">Type a number and press Enter · Esc = close</span>
+          <span>
+            <button type="button" class="btn small ghost" data-ctr-back>Change card</button>
+            <button type="button" class="btn small danger" data-ctr-clear ${Object.keys(counters).length ? "" : "disabled"}>Clear all</button>
+          </span>
+        </div>`;
+      root.hidden = false;
+
+      const bump = (key, sign) =>
+        sendAction("counters", { iid: ctrDialog.iid, counter: key, delta: sign * step });
+
+      root.querySelectorAll("[data-ctr-close]").forEach((b) => (b.onclick = ctrClose));
+      root.querySelectorAll("[data-ctr-step]").forEach((b) => {
+        b.onclick = () => {
+          ctrDialog.step = Number(b.dataset.ctrStep) || 1;
+          ctrRender();
+        };
+      });
+      root.querySelectorAll("[data-ctr-inc]").forEach((b) => {
+        b.onclick = () => bump(b.dataset.ctrInc, 1);
+      });
+      root.querySelectorAll("[data-ctr-dec]").forEach((b) => {
+        b.onclick = () => bump(b.dataset.ctrDec, -1);
+      });
+      // Typed input sets the absolute value. Committed on Enter or blur, and
+      // only when it actually changed, so a stray click elsewhere doesn't
+      // re-send the same number.
+      const commitNum = (inp) => {
+        const key = inp.dataset.ctrNum;
+        const current = counters[key] || 0;
+        let next = Math.trunc(Number(inp.value));
+        if (!Number.isFinite(next) || next < 0) next = 0;
+        if (next > 999) next = 999;
+        if (next === current) return;
+        sendAction("counters", { iid: ctrDialog.iid, counter: key, set: next });
+      };
+      root.querySelectorAll("[data-ctr-num]").forEach((inp) => {
+        inp.onkeydown = (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.stopPropagation();
+            commitNum(inp);
+            inp.blur();
+          }
+        };
+        inp.onblur = () => commitNum(inp);
+      });
+      const back = root.querySelector("[data-ctr-back]");
+      if (back) {
+        back.onclick = () => {
+          ctrPickMode = true;
+          ctrRender();
+        };
+      }
+      const clearBtn = root.querySelector("[data-ctr-clear]");
+      if (clearBtn) {
+        clearBtn.onclick = () => sendAction("counters", { iid: ctrDialog.iid, clear: true });
+      }
+      const addCustom = root.querySelector("[data-ctr-addcustom]");
+      const input = root.querySelector("#ctr-custom-input");
+      const addCustomCounter = () => {
+        const raw = (input.value || "").trim().toLowerCase().replace(/\s+/g, "-");
+        if (!raw) return;
+        // The server slices keys to 24 chars; match that here so the UI and
+        // stored key agree instead of silently diverging.
+        const key = raw.slice(0, 24);
+        sendAction("counters", { iid: ctrDialog.iid, counter: key, delta: step });
+        input.value = "";
+      };
+      if (addCustom) addCustom.onclick = addCustomCounter;
+      if (input) {
+        input.onkeydown = (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.stopPropagation();
+            addCustomCounter();
+          }
+        };
+      }
+    }
+
+    // Open on a specific card, or on the picker when no target is known.
+    function openCounterDialog(iid) {
+      ctrEnsureRoot();
+      const target = iid || selected;
+      if (target && findInst(target)) {
+        ctrDialog = { iid: target, step: (ctrDialog && ctrDialog.step) || 1 };
+        ctrPickMode = false;
+      } else {
+        ctrDialog = { iid: null, step: (ctrDialog && ctrDialog.step) || 1 };
+        ctrPickMode = true;
+      }
+      ctrRender();
     }
 
     function enableDrag() {
@@ -1849,6 +2359,16 @@
     window.addEventListener("keydown", onKey);
     function onKey(e) {
       if (e.target && e.target.matches && e.target.matches("input, textarea")) return;
+      // While the counter dialog is open, swallow table hotkeys and let Escape
+      // close it — otherwise "D" would draw and "-" would change counters
+      // behind the popup.
+      if (ctrDialog) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          ctrClose();
+        }
+        return;
+      }
       const iid = selected || hovered;
       if (e.key === "d" || e.key === "D") sendAction("draw");
       if (e.key === "n" || e.key === "N") sendAction("nextPhase");
@@ -1889,6 +2409,16 @@
             conn.send({ t: "join", code: joinCode, takeOver: true });
           }
         },
+        onBell: (m) => {
+          const from = escapeHtml(m && m.from ? m.from : "Your opponent");
+          toast(`🔔 ${from} rang the bell`);
+          if (window.MTG_SFX && window.MTG_SFX.play) window.MTG_SFX.play("bell");
+          // Nudge the console open so the log entry is visible even if the
+          // player had it collapsed. Reuse the aux button's own handler
+          // rather than reaching into the render scope.
+          const logTab = document.querySelector('[data-bar-tab="log"]');
+          if (logTab) logTab.click();
+        },
         onState: (s) => {
           state = s;
           r.code = s.code;
@@ -1907,6 +2437,9 @@
           startPhaseTimer(s);
           detectLifeChanges(s);
           render();
+          // Keep an open counter dialog in sync with server truth, otherwise
+          // the stepper values would only change on the next manual reopen.
+          if (ctrDialog) ctrRender();
           maybeAutoDraw(s);
           autoStepToMain();
         },
@@ -1916,6 +2449,12 @@
           if (mat && !state) {
             mat.innerHTML = `<div class="pregame"><h2>Could not sit</h2><p>${escapeHtml(err)}</p><p><a class="btn gold" onclick="window.MTG.openTablesModal && window.MTG.openTablesModal(); return false;" href="#">Back to tables</a></p></div>`;
           }
+        },
+        onClosed: (err) => {
+          // Table torn down from under us — don't leave the player staring at
+          // a dead playmat that will never receive another state push.
+          toast(err || "Table was closed");
+          leaveMatch(true);
         },
       });
       window.MTG_WS = conn.ws;

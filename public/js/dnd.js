@@ -96,7 +96,7 @@
       overlay.className = "dnd-inventory-overlay";
       overlay.style.position = "fixed";
       overlay.style.inset = "0";
-      overlay.style.zIndex = "9999";
+      overlay.style.zIndex = "100060";
       overlay.style.background = "rgba(0, 0, 0, 0.75)";
       overlay.style.backdropFilter = "blur(8px)";
       overlay.style.display = "flex";
@@ -104,12 +104,14 @@
       overlay.style.justifyContent = "center";
       overlay.style.padding = "20px";
       overlay.onclick = (e) => {
-        if (e.target === overlay) {
-          overlay.remove();
-          if (location.hash === "#/dnd") history.replaceState(null, "", "#/");
-        }
+        if (e.target === overlay) closeDndOverlay();
       };
       document.body.appendChild(overlay);
+    }
+    if (window.MTG?.bringToFront) {
+      window.MTG.bringToFront(overlay);
+    } else {
+      overlay.style.zIndex = "100060";
     }
     overlay.innerHTML = `<div class="sheet game-inventory-window" style="width:min(1240px, 96vw); max-height:92vh; overflow-y:auto; padding:20px; position:relative;"><div class="wrap" id="dnd-root">Loading D&D Sanctum… 🎲</div></div>`;
   
@@ -158,7 +160,7 @@
       if (!root) return;
 
       root.innerHTML = `
-        <button type="button" id="dnd-overlay-close" style="position:fixed;top:16px;right:20px;z-index:10001;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1" title="Close">×</button>
+        <button type="button" id="dnd-overlay-close" style="position:fixed;top:16px;right:20px;z-index:100;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1" title="Close">×</button>
         <div class="hero">
           <div>
             <h1>🎲 D&D Multiverse Tabletop Sanctum</h1>
@@ -341,9 +343,34 @@
       const worldW = cols * tileSize;
       const worldH = rows * tileSize;
 
+      // The spawn used to be hardcoded to (160,160) = cell (4,4), which on a
+      // walled map is usually a wall — the hero would spawn stuck inside one.
+      // Walk inward from the top-left until a passable cell turns up.
+      const walkableAt = (cx, cy) => {
+        const t = (curMap.tiles || {})[`${cx},${cy}`];
+        return t !== "wall" && t !== "lava";
+      };
+      let spawnX = 1, spawnY = 1;
+      outer: for (let ring = 1; ring < Math.max(cols, rows); ring++) {
+        for (let d = 0; d <= ring * 2; d++) {
+          const cands = [
+            [1 + d, 1 + ring], [1 + ring, 1 + d],
+            [1 + ring, 1 + 2 * ring - d], [1 + 2 * ring - d, 1 + ring],
+          ];
+          for (const [cx, cy] of cands) {
+            if (cx < cols && cy < rows && walkableAt(cx, cy)) {
+              spawnX = cx; spawnY = cy;
+              break outer;
+            }
+          }
+        }
+      }
+      // Never fall back to a wall cell, even on a fully solid map.
+      if (!walkableAt(spawnX, spawnY)) { spawnX = 1; spawnY = 1; }
+
       const hero = {
-        x: 160,
-        y: 160,
+        x: spawnX * tileSize + tileSize / 2,
+        y: spawnY * tileSize + tileSize / 2,
         speed: 3.5,
         dir: 0, // 0: Down, 1: Left, 2: Right, 3: Up
         frame: 0,
@@ -395,6 +422,35 @@
           { id: "m3", name: "Orc Berserker", icon: "👹", x: 480, y: 400, hp: 50, maxHp: 50, speed: 1.3, dir: 2, patrolX: 480, patrolY: 400, hitFlash: 0 },
         ],
       };
+
+      // RPGJS mode used to show a hardcoded demo encounter no matter which
+      // battlemap was open, so a GM's saved tokens were invisible here even
+      // though they rendered fine on the tabletop. Adopt the map's own tokens
+      // instead: hostiles become monsters, allies become NPCs.
+      if (Array.isArray(curMap.tokens) && curMap.tokens.length) {
+        events.monsters = [];
+        events.npcs = [];
+        for (const t of curMap.tokens) {
+          if (t.isEnemy) {
+            events.monsters.push({
+              id: t.id, name: t.name, icon: t.icon || "👹",
+              x: t.x * tileSize + tileSize / 2,
+              y: t.y * tileSize + tileSize / 2,
+              hp: t.hp, maxHp: t.maxHp, speed: 1.1, dir: 0,
+              patrolX: t.x * tileSize + tileSize / 2,
+              patrolY: t.y * tileSize + tileSize / 2,
+              hitFlash: 0,
+            });
+          } else {
+            events.npcs.push({
+              id: t.id, name: t.name, icon: t.icon || "🛡️",
+              x: t.x * tileSize + tileSize / 2,
+              y: t.y * tileSize + tileSize / 2,
+              dialog: `${t.name} holds the line.`,
+            });
+          }
+        }
+      }
 
       const projectiles = [];
       const particles = [];
@@ -1177,6 +1233,7 @@
             <button type="button" class="btn small ${activeTool === "select" ? "gold" : "ghost"}" id="tool-select" title="Move and inspect miniatures">👆 Select / Move</button>
             <button type="button" class="btn small ${activeTool === "terrain" ? "gold" : "ghost"}" id="tool-terrain" title="Click or drag to paint terrain tiles">🖌️ Paint Terrain</button>
             <button type="button" class="btn small ${activeTool === "eraser" ? "gold" : "ghost"}" id="tool-eraser" title="Reset cell to standard floor">🧹 Clear Tile</button>
+            <button type="button" class="btn small ${activeTool === "fog" ? "gold" : "ghost"}" id="tool-fog" title="Reveal or re-hide cells while Fog is on">🌫️ Reveal Fog</button>
             
             <div style="width:1px;height:24px;background:var(--line);margin:0 4px"></div>
             
@@ -1295,14 +1352,19 @@
 
     function renderBattlemapCells(curMap, cols, rows) {
       const tiles = curMap.tiles || {};
+      // Fog is per-cell: map.fog holds the cells the GM has revealed. A bare
+      // `showFog` flag fogged the entire board, which hid the map and could
+      // never be uncovered again.
+      const revealed = curMap.fog || {};
       let html = "";
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
           const key = `${x},${y}`;
           const tileType = tiles[key] || "floor";
           const terrainDef = TERRAIN_TYPES.find((t) => t.id === tileType) || TERRAIN_TYPES[0];
+          const isFogged = showFog && !revealed[key];
           html += `
-            <div class="dnd-cell ${showFog ? "fog-cell" : ""}" data-x="${x}" data-y="${y}" style="background:${terrainDef.bg};border:1px solid ${terrainDef.border};display:flex;align-items:center;justify-content:center;position:relative;cursor:${activeTool === "terrain" ? "crosshair" : "default"}">
+            <div class="dnd-cell ${isFogged ? "fog-cell" : ""}" data-x="${x}" data-y="${y}" style="background:${terrainDef.bg};border:1px solid ${terrainDef.border};display:flex;align-items:center;justify-content:center;position:relative;cursor:${activeTool === "terrain" || activeTool === "fog" ? "crosshair" : "default"}">
               ${tileType === "door" ? "🚪" : tileType === "wall" ? "" : ""}
             </div>
           `;
@@ -1378,27 +1440,44 @@
         newMapBtn.onclick = () => openNewMapModal();
       }
 
+      // Persist the current map. `quiet` suppresses the toast/sfx for
+      // auto-saves (e.g. after revealing fog) where a popup every click is
+      // noise. Saves are debounced so dragging the fog brush doesn't fire a
+      // request per cell.
+      let persistTimer = null;
+      function persistMap({ quiet = false } = {}) {
+        return new Promise((resolve, reject) => {
+          clearTimeout(persistTimer);
+          persistTimer = setTimeout(async () => {
+            try {
+              await api(`/api/dnd/maps/${curMap.id}`, {
+                method: "PUT",
+                body: {
+                  name: curMap.name,
+                  width: curMap.width,
+                  height: curMap.height,
+                  tiles: curMap.tiles,
+                  tokens: curMap.tokens,
+                  fog: curMap.fog || null,
+                },
+              });
+              if (!quiet) {
+                window.MTG_SFX && window.MTG_SFX.play("victory");
+                toast("Battlemap saved successfully! 💾✨");
+              }
+              resolve();
+            } catch (err) {
+              if (!quiet) toast(err.message || "Could not save map");
+              reject(err);
+            }
+          }, quiet ? 400 : 0);
+        });
+      }
+
       // Save Map button
       const saveMapBtn = $("#btn-save-map");
       if (saveMapBtn) {
-        saveMapBtn.onclick = async () => {
-          try {
-            await api(`/api/dnd/maps/${curMap.id}`, {
-              method: "PUT",
-              body: {
-                name: curMap.name,
-                width: curMap.width,
-                height: curMap.height,
-                tiles: curMap.tiles,
-                tokens: curMap.tokens,
-              },
-            });
-            window.MTG_SFX && window.MTG_SFX.play("victory");
-            toast("Battlemap saved successfully! 💾✨");
-          } catch (err) {
-            toast(err.message || "Could not save map");
-          }
-        };
+        saveMapBtn.onclick = () => persistMap();
       }
 
       // If in RPGJS 2D Engine Mode, initialize canvas engine and finish
@@ -1432,10 +1511,19 @@
       if (toolTerr) toolTerr.onclick = () => { activeTool = "terrain"; render(); };
       const toolEraser = $("#tool-eraser");
       if (toolEraser) toolEraser.onclick = () => { activeTool = "eraser"; render(); };
+      const toolFog = $("#tool-fog");
+      if (toolFog) toolFog.onclick = () => { activeTool = "fog"; render(); };
       const btnGrid = $("#btn-toggle-grid");
       if (btnGrid) btnGrid.onclick = () => { showGrid = !showGrid; render(); };
       const btnFog = $("#btn-toggle-fog");
-      if (btnFog) btnFog.onclick = () => { showFog = !showFog; render(); };
+      // Turning fog on hides everything not yet revealed; turning it off shows
+      // the whole board. Either way the revealed set is persisted on the map.
+      if (btnFog) btnFog.onclick = () => {
+        showFog = !showFog;
+        if (showFog && !curMap.fog) curMap.fog = {};
+        persistMap({ quiet: true }).catch(() => {});
+        render();
+      };
 
       // Terrain Palette Select
       $$(".btn-brush-sel").forEach((btn) => {
@@ -1468,7 +1556,19 @@
         const y = cell.dataset.y;
         if (!curMap.tiles) curMap.tiles = {};
         const key = `${x},${y}`;
-        if (activeTool === "terrain") {
+        if (activeTool === "fog") {
+          // Toggling a cell's revealed state, so fog can actually be lifted
+          // one square at a time instead of blanketing the whole board.
+          if (!curMap.fog) curMap.fog = {};
+          if (curMap.fog[key]) {
+            delete curMap.fog[key];
+            cell.classList.remove("fog-cell");
+          } else {
+            curMap.fog[key] = true;
+            cell.classList.add("fog-cell");
+          }
+          persistMap({ quiet: true }).catch(() => {});
+        } else if (activeTool === "terrain") {
           curMap.tiles[key] = selectedTerrain;
           const terrainDef = TERRAIN_TYPES.find((t) => t.id === selectedTerrain) || TERRAIN_TYPES[0];
           cell.style.background = terrainDef.bg;
@@ -2352,16 +2452,23 @@
 
     render();
 
+    // Single teardown path. Removing the overlay alone left the RPGJS requestAnimationFrame
+    // loop and the window keydown/keyup listeners running forever, burning CPU
+    // and swallowing keys for the rest of the session.
+    function closeDndOverlay() {
+      if (rpgjsInstance) {
+        rpgjsInstance.destroy();
+        rpgjsInstance = null;
+      }
+      const ol = document.getElementById("dnd-full-overlay");
+      if (ol) ol.remove();
+      if (location.hash === "#/dnd") history.replaceState(null, "", "#/");
+    }
+
     // Bind close button (re-bind after every render since innerHTML is replaced)
     function bindClose() {
       const closeBtn = document.getElementById("dnd-overlay-close");
-      if (closeBtn) {
-        closeBtn.onclick = () => {
-          const ol = document.getElementById("dnd-full-overlay");
-          if (ol) ol.remove();
-          if (location.hash === "#/dnd") history.replaceState(null, "", "#/");
-        };
-      }
+      if (closeBtn) closeBtn.onclick = closeDndOverlay;
     }
     // Patch render to always re-bind after DOM refresh
     const _origRender = render;

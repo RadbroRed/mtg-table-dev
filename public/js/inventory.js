@@ -22,15 +22,23 @@
     loginIcon,
   } = window.MTG;
 
-  let activeTab = "decks"; // "decks" | "binder" | "wallet"
+  let activeTab = "decks"; // "decks" | "binder" | "wallet" | "quests"
   let walletTxs = null;
   let walletTxsLoading = false;
+  let questData = null;
+  let questsLoading = false;
   let cachedDecks = [];
   let binderCards = [];
   let binderLoading = false;
   let binderQuery = "";
   let binderColor = "";
   let binderType = "";
+
+  // D2's pack is a fixed 10x4 block of slots. Anything past that goes into
+  // stash blocks rather than stretching the pack into an odd tall grid.
+  const PACK_COLS = 10;
+  const PACK_ROWS = 4;
+  const PACK_SIZE = PACK_COLS * PACK_ROWS;
 
   window.MTG.openInventoryModal = async function openInventoryModal(opts = {}) {
     const second = window.MTG_SECOND;
@@ -46,21 +54,37 @@
       cachedDecks = [];
     }
 
+    // Quest state lives server-side and isn't in the cached user, so pull it
+    // whenever the Quests tab is the one being opened.
+    if (activeTab === "quests") {
+      questData = null;
+      questsLoading = true;
+      try {
+        questData = await api("/api/quests");
+      } catch {
+        questData = null;
+      }
+      questsLoading = false;
+    }
+
     // Determine current equipped deck
     let equippedId = sessionStorage.getItem("mtg-selected-deck") || localStorage.getItem("mtg-selected-deck");
 
-    // Filter user's personal decks tied to this wallet/account
-    const myDecks = cachedDecks.filter((d) => {
+    // Filter user's personal decks tied to this wallet/account (strictly NO starter decks)
+    let myDecks = cachedDecks.filter((d) => {
+      if (d.starter) return false;
       if (user && d.userId === user.id) return true;
-      if (!user && (d.userId === me.id || (!d.userId && !d.starter))) return true;
+      if (!user && d.userId === me.id) return true;
       return false;
     });
-    const starterDecks = cachedDecks.filter((d) => d.starter);
 
-    let equippedDeck = cachedDecks.find((d) => d.id === equippedId) || myDecks[0] || starterDecks[0] || null;
-    if (equippedDeck && !equippedId) {
+    let equippedDeck = myDecks.find((d) => d.id === equippedId) || myDecks[0] || null;
+    if (equippedDeck) {
       equippedId = equippedDeck.id;
       sessionStorage.setItem("mtg-selected-deck", equippedId);
+    } else {
+      equippedId = null;
+      sessionStorage.removeItem("mtg-selected-deck");
     }
 
     async function fetchBinderCards() {
@@ -84,6 +108,22 @@
 
     function render() {
       user = getCachedUser(second);
+      // Strictly player's saved decks only — NO starter decks
+      myDecks = cachedDecks.filter((d) => {
+        if (d.starter) return false;
+        if (user && d.userId === user.id) return true;
+        if (!user && d.userId === me.id) return true;
+        return false;
+      });
+      equippedDeck = myDecks.find((d) => d.id === equippedId) || myDecks[0] || null;
+      if (equippedDeck && (!equippedId || !myDecks.some((d) => d.id === equippedId))) {
+        equippedId = equippedDeck.id;
+        sessionStorage.setItem("mtg-selected-deck", equippedId);
+      } else if (!equippedDeck) {
+        equippedId = null;
+        sessionStorage.removeItem("mtg-selected-deck");
+      }
+
       const hasWallet = !!(user && user.walletAddress);
       const walletAddr = user?.walletAddress || "";
       const walletChain = user?.walletChain || (walletAddr.startsWith("0x") ? "ethereum" : "solana");
@@ -98,32 +138,16 @@
           <button type="button" id="inv-close-btn" title="Close">✕</button>
           <div class="d2-inv-title">INVENTORY</div>
           <div class="d2-inv-body">
-            <aside class="d2-doll" aria-label="Character">
-              <div class="d2-slot d2-slot-head" title="Portrait">${portrait}</div>
-              <div class="d2-slot d2-slot-amulet" title="Lotus">💎</div>
-              <div class="d2-slot d2-slot-weapon" title="Equipped deck">
-                <span>🎴</span>
-                <b>${equippedDeck ? escapeHtml(equippedDeck.name) : "Empty"}</b>
-              </div>
-              <div class="d2-slot d2-slot-armor" title="Character">
-                <span style="font-size:22px">🧙</span>
-                <b>${escapeHtml((user && (user.displayName || user.username)) || me.name || "Hero")}</b>
-              </div>
-              <div class="d2-slot d2-slot-shield" title="Format">${escapeHtml(equippedDeck?.format || "duel")}</div>
-              <div class="d2-slot d2-slot-glove" title="Wallet">${hasWallet ? walletIcon : "👛"}</div>
-              <div class="d2-slot d2-slot-ring" title="Decks">🎴<b>${myDecks.length}</b></div>
-              <div class="d2-slot d2-slot-ring2" title="Starters">⭐<b>${starterDecks.length}</b></div>
-              <div class="d2-slot d2-slot-belt" title="Gold">🪙 ${goldBal.toLocaleString()}</div>
-              <div class="d2-slot d2-slot-boots" title="Network">${hasWallet ? "⛓" : "—"}</div>
-            </aside>
+            ${renderPaperDoll(user, me, myDecks, equippedDeck, hasWallet, walletIcon, goldBal, portrait)}
             <section class="d2-pack">
               <div class="d2-tabs-bar">
                 <button type="button" class="d2-tab-btn ${activeTab === "decks" ? "active" : ""}" id="inv-tab-decks">Decks</button>
                 <button type="button" class="d2-tab-btn ${activeTab === "binder" ? "active" : ""}" id="inv-tab-binder">Binder</button>
                 <button type="button" class="d2-tab-btn ${activeTab === "wallet" ? "active" : ""}" id="inv-tab-wallet">Wallet</button>
+                <button type="button" class="d2-tab-btn ${activeTab === "quests" ? "active" : ""}" id="inv-tab-quests">Quests</button>
               </div>
               <div class="inventory-body">
-                ${renderTabContent(user, me, myDecks, starterDecks, equippedDeck)}
+                ${renderTabContent(user, me, myDecks, equippedDeck)}
               </div>
               <div class="d2-goldbar">
                 <span class="d2-gold-coin" aria-hidden="true"></span>
@@ -151,17 +175,154 @@
       `;
 
       if (window.MTG.openModal) window.MTG.openModal(html);
-      bindEvents(user, me, myDecks, starterDecks, equippedDeck);
+      bindEvents(user, me, myDecks, equippedDeck);
     }
 
-    function renderTabContent(user, me, myDecks, starterDecks, equippedDeck) {
+    function renderTabContent(user, me, myDecks, equippedDeck) {
       if (activeTab === "binder") {
         return renderBinderTab();
       }
       if (activeTab === "wallet") {
         return renderWalletTab(user);
       }
-      return renderDecksTab(user, me, myDecks, starterDecks, equippedDeck);
+      if (activeTab === "quests") {
+        return renderQuestsTab(user);
+      }
+      return renderDecksTab(user, me, myDecks, equippedDeck);
+    }
+
+    // Every quest/XP task a player can do, plus the daily claim. Rewards are the
+    // real values the server pays out, not a client-side approximation.
+    function renderQuestsTab(user) {
+      if (questsLoading) {
+        return `<div class="d2-quest-loading">Consulting the Chronicler…</div>`;
+      }
+      if (!questData) {
+        return `<div class="d2-quest-loading">No quest log available. Log in to see your tasks.</div>`;
+      }
+
+      const q = questData;
+      const daily = q.daily || {};
+      const quests = q.quests || [];
+      const sources = q.xpSources || [];
+      const doneCount = quests.filter((x) => x.done).length;
+
+      const questRows = quests
+        .map((t) => {
+          const done = !!t.done;
+          const pct = Math.min(100, Math.round(((t.progress || 0) / (t.target || 1)) * 100));
+          return `
+            <li class="quest-row ${done ? "done" : ""}">
+              <span class="quest-icon">${escapeHtml(t.icon || "✨")}</span>
+              <div class="quest-body">
+                <div class="quest-name">${escapeHtml(t.name || t.id)}</div>
+                <div class="quest-desc">${escapeHtml(t.desc || "")}</div>
+                <div class="quest-progress"><span style="width:${pct}%"></span></div>
+              </div>
+              <div class="quest-reward">
+                <span class="quest-xp">+${t.reward || 0} 🪙</span>
+                <span class="quest-xp quest-xp-amount">+50 XP</span>
+                <span class="quest-count">${t.progress || 0}/${t.target || 1}</span>
+              </div>
+            </li>`;
+        })
+        .join("");
+
+      const sourceRows = sources
+        .map(
+          (s) => `
+          <li class="quest-row quest-row-source">
+            <span class="quest-icon">${escapeHtml(s.icon || "🌟")}</span>
+            <div class="quest-body">
+              <div class="quest-name">${escapeHtml(s.name || "")}</div>
+              <div class="quest-desc">${escapeHtml(s.desc || "")}</div>
+            </div>
+            <div class="quest-reward">
+              <span class="quest-xp quest-xp-amount">+${s.xp || 0} XP</span>
+            </div>
+          </li>`
+        )
+        .join("");
+
+      const dailyBtn = daily.claimed
+        ? `<button type="button" class="btn small ghost" disabled>✅ Claimed today</button>`
+        : `<button type="button" class="btn small gold" id="inv-quest-claim-btn">Claim ${daily.nextReward || 100} 🪙 + 50 XP</button>`;
+
+      return `
+        <div class="quests-overlay inv-quests">
+          <div class="quests-head">
+            <h3>📜 Quest Log</h3>
+            <p class="muted">Every task that earns XP or gold.</p>
+          </div>
+          <div class="quests-totals">
+            <span>🌟 Lifetime XP <strong>${(q.totalXp || 0).toLocaleString()}</strong></span>
+            <span>📜 Quests done <strong>${q.questsDone || 0}</strong></span>
+            <span>🔥 Daily streak <strong>${daily.streak || 0}</strong></span>
+            <span>⚔️ Today <strong>${doneCount}/${quests.length}</strong></span>
+          </div>
+          <div class="quests-section">
+            <div class="quests-section-head">
+              <h4>Today's Bounties</h4>
+              ${dailyBtn}
+            </div>
+            <ul class="quest-list">${questRows || `<li class="muted">No quests today — check back tomorrow.</li>`}</ul>
+          </div>
+          <div class="quests-section">
+            <h4>All Ways to Earn XP</h4>
+            <ul class="quest-list">${sourceRows || `<li class="muted">No XP sources listed.</li>`}</ul>
+          </div>
+        </div>`;
+    }
+
+    // Quest state is not in the cached user payload, so it always needs a fetch.
+    async function loadQuests() {
+      questsLoading = true;
+      if (activeTab === "quests") render();
+      try {
+        questData = await api("/api/quests");
+      } catch {
+        questData = null;
+      }
+      questsLoading = false;
+      if (activeTab === "quests") render();
+    }
+
+    // D2's paper doll: helm, amulet, then the three-column weapon/armour/shield
+    // row, gloves and the two ring slots, and belt over boots. Laid out on the
+    // same 3x5 grid the original uses so the silhouette reads like D2's.
+    function renderPaperDoll(user, me, myDecks, equippedDeck, hasWallet, walletIcon, goldBal, portrait) {
+      const heroName = (user && (user.displayName || user.username)) || me.name || "Hero";
+      const deckName = equippedDeck ? equippedDeck.name : "Empty";
+      const fmt = equippedDeck?.format || "—";
+      const wins = user ? (user.wins || 0) : 0;
+      const losses = user ? (user.losses || 0) : 0;
+      const level = user ? (user.level || 1) : 1;
+
+      // Filled slots keep D2's item-name colour: gold for the equipped deck,
+      // blue for a rarity tier, plain cream for base stats.
+      const slot = (cls, opts) => {
+        const { icon = "", name = "", tier = "", tip = "", size = "" } = opts || {};
+        return `
+          <div class="d2-slot ${cls} ${size}" data-tip="${escapeHtml(tip)}" title="${escapeHtml(tip)}">
+            ${icon ? `<span class="d2-slot-icon">${icon}</span>` : ""}
+            ${name ? `<b class="d2-slot-name ${tier}">${escapeHtml(name)}</b>` : ""}
+          </div>`;
+      };
+
+      return `
+        <aside class="d2-doll" aria-label="Character equipment">
+          ${slot("d2-slot-helm", { size: "d2-slot-portrait", tip: "Portrait", icon: portrait })}
+          ${slot("d2-slot-amulet", { size: "d2-slot-small", tip: "Lotus", icon: "💎" })}
+          ${slot("d2-slot-weapon", { tip: equippedDeck ? `Equipped deck — ${deckName}` : "No deck equipped in pack (Save or forge one in Builder)", icon: "🎴", name: deckName, tier: equippedDeck ? "tier-unique" : "tier-normal" })}
+          ${slot("d2-slot-armour", { tip: `Planeswalker — ${heroName}`, icon: "🧙", name: heroName, tier: "tier-normal" })}
+          ${slot("d2-slot-shield", { tip: `Format — ${fmt}`, icon: "🛡️", name: fmt, tier: "tier-rare" })}
+          ${slot("d2-slot-glove", { size: "d2-slot-mid", tip: hasWallet ? `Wallet linked — ${walletIcon}` : "No wallet linked", icon: hasWallet ? walletIcon : "👛" })}
+          ${slot("d2-slot-ring", { size: "d2-slot-small", tip: `Saved Decks — ${myDecks.length} in pack`, icon: "🎴", name: String(myDecks.length), tier: "tier-rare" })}
+          ${slot("d2-slot-ring2", { size: "d2-slot-small", tip: `Record — ${wins}W ${losses}L`, icon: "⚔️", name: `${wins}-${losses}`, tier: "tier-rare" })}
+          ${slot("d2-slot-belt", { size: "d2-slot-wide", tip: `Gold — ${goldBal.toLocaleString()}`, icon: "🪙", name: goldBal.toLocaleString(), tier: "tier-unique" })}
+          ${slot("d2-slot-boots", { size: "d2-slot-mid", tip: hasWallet ? "Network — connected" : "Network — none", icon: hasWallet ? "⛓" : "—" })}
+          ${slot("d2-slot-level", { size: "d2-slot-wide", tip: `Level — ${level}`, icon: "⭐", name: `Lv. ${level}`, tier: "tier-rare" })}
+        </aside>`;
     }
 
     function dollPortrait(user) {
@@ -178,41 +339,81 @@
     }
 
     function padD2Grid(cells) {
-      const cols = 10;
-      const min = 40;
+      const cols = PACK_COLS;
+      const min = PACK_SIZE;
       const target = Math.max(min, Math.ceil(cells.length / cols) * cols);
       while (cells.length < target) cells.push(`<div class="d2-cell"></div>`);
       return cells.join("");
     }
 
-    function renderDecksTab(user, me, myDecks, starterDecks, equippedDeck) {
-      const cells = [];
-      if (!myDecks.length) {
-        cells.push(`<button type="button" class="d2-cell filled" id="inv-btn-create-first" title="Forge a deck">＋</button>`);
-      }
-      for (const d of myDecks) cells.push(renderDeckCard(d, equippedDeck?.id === d.id, true));
-      for (const d of starterDecks) cells.push(renderDeckCard(d, equippedDeck?.id === d.id, false));
+    // The belt holds the handful of things you reach for constantly, kept on
+    // their own row the way D2 keeps potions off the main grid.
+    function renderBelt(user, myDecks, equippedDeck, goldBal) {
+      const hasWallet = !!(user && user.walletAddress);
+      return `
+        <div class="d2-belt" aria-label="Belt">
+          <span class="d2-belt-label">BELT</span>
+          <div class="d2-belt-slot ${equippedDeck ? "hot" : ""}" title="${equippedDeck ? `Equipped deck: ${escapeHtml(equippedDeck.name)}` : "No deck equipped"}">🎴<small>${escapeHtml((equippedDeck && equippedDeck.format) || "—")}</small></div>
+          <div class="d2-belt-slot" title="Saved decks in your pack">🗂️<small>${myDecks.length}</small></div>
+          <div class="d2-belt-slot" title="Gold on hand">🪙<small>${goldBal > 9999 ? `${Math.floor(goldBal / 1000)}k` : goldBal}</small></div>
+          <div class="d2-belt-slot" title="Wins / losses">⚔️<small>${user ? `${user.wins || 0}-${user.losses || 0}` : "0-0"}</small></div>
+          <div class="d2-belt-slot" title="Planeswalker level">⭐<small>Lv.${user ? user.level || 1 : 1}</small></div>
+          <div class="d2-belt-slot" title="${hasWallet ? "Wallet linked" : "No wallet linked"}">${hasWallet ? (user.walletChain === "solana" ? "👻" : "🦊") : "👛"}<small>${hasWallet ? "linked" : "none"}</small></div>
+        </div>`;
+    }
+
+    function renderDecksTab(user, me, myDecks, equippedDeck) {
+      const goldBal = typeof user?.balance === "number" ? user.balance : 0;
+      // The pack holds only your own decks. Default decks are not listed here
+      // at all — they live in the deck builder, and forking one there is what
+      // puts it in your pack.
+      const pack = myDecks.length ? myDecks : [{ kind: "create" }];
+
+      const cellFor = (item) => {
+        if (item.kind === "create") {
+          return `<button type="button" class="d2-cell filled" id="inv-btn-create-first" title="No saved decks yet — Click to forge a deck in Builder">＋</button>`;
+        }
+        return renderDeckCard(item, equippedDeck?.id === item.id);
+      };
+
+      const inPack = pack.slice(0, PACK_SIZE);
+      const overflow = myDecks.slice(PACK_SIZE);
+      // Never leave the pack entirely blank: keep at least one empty slot row
+      // visible so the 10x4 frame always reads as a full block of slots.
+      const cells = inPack.map(cellFor);
+      const stash = overflow.map(cellFor);
+
       return `
         <div class="d2-grid" aria-label="Pack">
           ${padD2Grid(cells)}
         </div>
+        ${renderBelt(user, myDecks, equippedDeck, goldBal)}
+        ${
+          stash.length
+            ? `<div class="d2-stash-wrap">
+                 <div class="d2-stash-head">STASH</div>
+                 <div class="d2-grid" aria-label="Stash">${padD2Grid(stash)}</div>
+               </div>`
+            : ""
+        }
         ${equippedDeck ? `<div style="margin-top:8px"><button type="button" class="btn small ghost" id="inv-edit-equipped" data-did="${equippedDeck.id}">Edit ${escapeHtml(equippedDeck.name)}</button></div>` : ""}
       `;
     }
 
-    function renderDeckCard(d, isEquipped, isPersonal) {
+    function renderDeckCard(d, isEquipped) {
       const cardCount = d.counts ? (d.counts.main + (d.counts.command || 0)) : (d.cards?.length || 60);
+      const tier = isEquipped ? "tier-unique" : "tier-rare";
       return `
         <div class="d2-cell filled ${isEquipped ? "equipped" : ""}" title="${escapeHtml(d.name)} · ${cardCount} cards · ${escapeHtml(d.format || "duel")}">
           ${
             isEquipped
-              ? `<span class="d2-cell-hit">${isPersonal ? "🎴" : "⭐"}</span>`
-              : `<button type="button" class="d2-cell-hit btn-inv-equip" data-did="${d.id}" title="Equip ${escapeHtml(d.name)}">${isPersonal ? "🎴" : "⭐"}</button>`
+              ? `<span class="d2-cell-hit">🎴</span>`
+              : `<button type="button" class="d2-cell-hit btn-inv-equip" data-did="${d.id}" title="Equip ${escapeHtml(d.name)}">🎴</button>`
           }
-          <span class="d2-cell-name">${escapeHtml(d.name)}</span>
+          <span class="d2-cell-name ${tier}">${escapeHtml(d.name)}</span>
           <span class="d2-cell-mini">
             <button type="button" class="btn-inv-forge" data-did="${d.id}" title="Edit">✎</button>
-            ${isPersonal ? `<button type="button" class="btn-inv-del" data-did="${d.id}" title="Delete">✕</button>` : ""}
+            <button type="button" class="btn-inv-del" data-did="${d.id}" title="Delete">✕</button>
           </span>
         </div>
       `;
@@ -393,10 +594,100 @@
       }
     }
 
-    function bindEvents(user, me, myDecks, starterDecks, equippedDeck) {
+    // Stands in for D2's item tooltip: hovering a slot raises a small bordered
+    // panel naming the item and its stats, instead of relying on the browser's
+    // native title tooltip. One element is shared across renders — this is
+    // re-run on every render(), so creating the node here would leak one per
+    // open.
+    function d2TipEl() {
+      let tip = document.getElementById("d2-tip-el");
+      if (!tip) {
+        tip = document.createElement("div");
+        tip.id = "d2-tip-el";
+        tip.className = "d2-tip";
+        document.body.appendChild(tip);
+        // The tooltip is position:fixed on <body>, so it can outlive the modal
+        // that spawned it. These are attached once here (not per render) and
+        // make it drop on leave, scroll, or resize. closeModal is shared and
+        // has no hook for this, so leaving the window is the safety net.
+        const drop = () => tip.classList.remove("on");
+        document.addEventListener("mouseleave", drop);
+        window.addEventListener("scroll", drop, { passive: true });
+        window.addEventListener("resize", drop);
+      }
+      return tip;
+    }
+
+    function bindD2Tooltips() {
+      const tip = d2TipEl();
+
+      const place = (cell) => {
+        const r = cell.getBoundingClientRect();
+        const tr = tip.getBoundingClientRect();
+        // Flip to the left of the slot when there is no room on the right.
+        let left = r.right + 8;
+        if (left + tr.width > window.innerWidth - 8) left = Math.max(8, r.left - tr.width - 8);
+        let top = r.top;
+        if (top + tr.height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - tr.height - 8);
+        tip.style.left = `${left}px`;
+        tip.style.top = `${top}px`;
+        if (window.MTG?.bringToFront) {
+          tip.style.zIndex = Math.max(window.MTG.bringToFront() + 20, 100450);
+        } else {
+          tip.style.zIndex = "100450";
+        }
+      };
+
+      const showCell = (cell) => {
+        const name = cell.querySelector(".d2-cell-name");
+        if (!name) return;
+        const tier = name.className.replace("d2-cell-name", "").trim() || "tier-normal";
+        const sub = cell.getAttribute("title") || "";
+        tip.innerHTML = `<div class="d2-tip-name ${tier}">${name.textContent}</div><div class="d2-tip-sub">${escapeHtml(sub)}</div>`;
+        tip.classList.add("on");
+        place(cell);
+      };
+
+      $$(".d2-cell.filled").forEach((cell) => {
+        cell.addEventListener("mouseenter", () => showCell(cell));
+        cell.addEventListener("mouseleave", () => tip.classList.remove("on"));
+      });
+      $$(".d2-belt-slot").forEach((cell) => {
+        cell.addEventListener("mouseenter", () => {
+          tip.innerHTML = `<div class="d2-tip-name tier-normal">${escapeHtml(cell.getAttribute("title") || "")}</div>`;
+          tip.classList.add("on");
+          place(cell);
+        });
+        cell.addEventListener("mouseleave", () => tip.classList.remove("on"));
+      });
+      // Paper-doll slots get the same treatment, with the slot's item name
+      // in its own colour and the full description underneath.
+      $$(".d2-slot[data-tip]").forEach((cell) => {
+        cell.addEventListener("mouseenter", () => {
+          const name = cell.querySelector(".d2-slot-name");
+          const tier = name ? name.className.replace("d2-slot-name", "").trim() || "tier-normal" : "tier-normal";
+          const sub = cell.getAttribute("data-tip") || "";
+          tip.innerHTML =
+            (name ? `<div class="d2-tip-name ${tier}">${escapeHtml(name.textContent)}</div>` : "") +
+            `<div class="d2-tip-sub">${escapeHtml(sub)}</div>`;
+          tip.classList.add("on");
+          place(cell);
+        });
+        cell.addEventListener("mouseleave", () => tip.classList.remove("on"));
+      });
+    }
+
+    function bindEvents(user, me, myDecks, equippedDeck) {
+      bindD2Tooltips();
+
       // Close button
       const closeBtn = $("#inv-close-btn");
-      if (closeBtn) closeBtn.onclick = closeModal;
+      if (closeBtn) {
+        closeBtn.onclick = () => {
+          $("#d2-tip-el")?.classList.remove("on");
+          closeModal();
+        };
+      }
 
       // Tab switches
       const tDecks = $("#inv-tab-decks");
@@ -411,6 +702,24 @@
       }
       const tWallet = $("#inv-tab-wallet");
       if (tWallet) tWallet.onclick = () => { activeTab = "wallet"; loadWalletTxs(); };
+      const tQuests = $("#inv-tab-quests");
+      if (tQuests) tQuests.onclick = () => { activeTab = "quests"; loadQuests(); };
+      const claimQuest = $("#inv-quest-claim-btn");
+      if (claimQuest) {
+        claimQuest.onclick = async () => {
+          claimQuest.disabled = true;
+          try {
+            const res = await api("/api/quests/claim", { method: "POST" });
+            if (res && res.user && window.MTG.setCachedUser) window.MTG.setCachedUser(res.user);
+            if (res && res.achievements && res.achievements.length && window.MTG.toast) {
+              window.MTG.toast(`🏆 ${res.achievements.join(", ")}`, "gold");
+            }
+          } catch (e) {
+            if (window.MTG.toast) window.MTG.toast(e?.message || "Could not claim reward", "danger");
+          }
+          await loadQuests();
+        };
+      }
       const refreshTx = $("#inv-wallet-refresh-tx");
       if (refreshTx) refreshTx.onclick = () => loadWalletTxs();
 
@@ -572,7 +881,7 @@
       $$(".btn-inv-equip").forEach((b) => {
         b.onclick = () => {
           const did = b.dataset.did;
-          const target = cachedDecks.find((d) => d.id === did);
+          const target = myDecks.find((d) => d.id === did);
           if (target) {
             sessionStorage.setItem("mtg-selected-deck", did);
             localStorage.setItem("mtg-selected-deck", did);
@@ -614,15 +923,14 @@
       });
 
       // New Deck / Create first
-      const btnNew = $("#inv-btn-new-deck") || $("#inv-btn-create-first");
-      if (btnNew) {
+      $$("#inv-btn-new-deck, #inv-btn-create-first").forEach((btnNew) => {
         btnNew.onclick = () => {
           closeModal();
           setTimeout(() => {
             if (window.MTG.openBuilderModal) window.MTG.openBuilderModal({ isNew: true });
           }, 150);
         };
-      }
+      });
 
       // Binder Search controls
       const sInput = $("#inv-binder-search");

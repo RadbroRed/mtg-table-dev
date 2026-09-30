@@ -57,33 +57,22 @@ SparkyNPC.prototype.onAction = async function(event, player) {
   player.emit('open-sparky', { npcId: this.id });
 };
 
+// ── Map files ─────────────────────────────────────────────────────────────────
+// MapData.file must be a PATH STRING. Passing a plain object throws inside
+// TiledParserFile.typeOfFile(), which calls file.trim() before any type check.
+// Two further constraints the format imposes, both learned the hard way:
+//   1. the tilesets list must contain at least one inline tileset, or
+//      parseFile()'s callback is never invoked and parseTmx() hangs forever;
+//   2. a layer of all-zero gids is read as solid everywhere (a zero gid has no
+//      tileset entry, so the collision lookup falls back to "blocked"), so
+//      walkable ground must carry a real non-collision gid.
+const path = require('path');
+
+const homeroomFile = path.join(__dirname, 'maps', 'homeroom.tmx');
+const arenaFile    = path.join(__dirname, 'maps', 'arena.tmx');
+
 // ── Homeroom Map (1280 × 800 — 40×25 32px tiles) ──────────────────────────────
 class HomeroomMap extends RpgMap {}
-const homeroomFile = {
-  width:      40,
-  height:     25,
-  tilewidth:  32,
-  tileheight: 32,
-  infinite:   false,
-  orientation: 'orthogonal',
-  renderorder: 'right-down',
-  type:       'map',
-  layers: [
-    {
-      name:    'ground',
-      type:    'tilelayer',
-      width:   40,
-      height:  25,
-      x: 0, y: 0,
-      opacity: 1,
-      visible: true,
-      data: new Array(40 * 25).fill(0),
-    },
-  ],
-  tilesets: [],
-  properties: [],
-};
-
 MapData({
   id: 'homeroom',
   name: 'Overworld',
@@ -94,8 +83,14 @@ MapData({
   file: homeroomFile,
 })(HomeroomMap);
 
-HomeroomMap.file = homeroomFile;
-HomeroomMap.prototype.file = homeroomFile;
+// ── Arena Map (960 × 640 — 30×20 32px tiles) ──────────────────────────────────
+class ArenaMap extends RpgMap {}
+MapData({
+  id: 'arena',
+  name: 'The Grand Arena',
+  events: [],
+  file: arenaFile,
+})(ArenaMap);
 
 // ── RPG Module ────────────────────────────────────────────────────────────────
 class MtgWorldModule {}
@@ -182,7 +177,7 @@ RpgModule({
       player.teleport({ x: 600, y: 440 });
     },
   },
-  maps:   [HomeroomMap],
+  maps:   [HomeroomMap, ArenaMap],
   events: [SparringDummy, SparkyNPC],
 })(MtgWorldModule);
 

@@ -67,6 +67,8 @@
       `;
 
       bindEvents(myGuild, myId);
+      const m = document.getElementById("modal");
+      if (m && window.MTG?.bringToFront) window.MTG.bringToFront(m);
     }
 
     function renderGuildsTab(myGuild, myId) {

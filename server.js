@@ -140,6 +140,58 @@ function saveLeagues() {
 loadLeagues();
 
 let dndData = { campaigns: [], maps: [] };
+
+// A blank install used to leave the Battlemap tab on "No maps available. Create
+// one!", so seed a small starter encounter set. Only ever applied when the
+// stored maps list is empty — never overwrites a GM's own work.
+function starterDndMaps() {
+  const mk = (name, w, h, build) => {
+    const tiles = {};
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) tiles[`${x},${y}`] = build(x, y);
+    }
+    return { id: "map-" + uid(8), name, width: w, height: h, campaignId: null, tiles, tokens: [] };
+  };
+
+  const wallRing = (x, y, w, h) =>
+    x === 0 || y === 0 || x === w - 1 || y === h - 1;
+
+  const cave = mk("Echoing Cavern", 20, 14, (x, y) => {
+    if (wallRing(x, y, 20, 14)) return "wall";
+    if (x === 5 && y === 7) return "water";
+    if (x >= 7 && x <= 12 && y >= 3 && y <= 5) return "grass";
+    return "floor";
+  });
+
+  const crossroads = mk("Bandit Crossroads", 24, 16, (x, y) => {
+    if (wallRing(x, y, 24, 16)) return "wall";
+    if (y === 8) return "wood";
+    if (x === 12) return "wood";
+    if (x === 12 && y === 8) return "door";
+    if (x >= 15 && x <= 19 && y >= 2 && y <= 4) return "water";
+    return "grass";
+  });
+
+  const forge = mk("Emberforge Hall", 18, 12, (x, y) => {
+    if (wallRing(x, y, 18, 12)) return "wall";
+    if (x >= 7 && x <= 10 && y >= 4 && y <= 7) return "lava";
+    if (y === 6) return "wood";
+    return "floor";
+  });
+
+  cave.tokens = [
+    { id: "tok-" + uid(6), name: "Goblin Raider", icon: "👺", color: "#ef4444", hp: 12, maxHp: 12, isEnemy: true, type: "Goblin", x: 9, y: 6, size: 1 },
+    { id: "tok-" + uid(6), name: "Skeleton Archer", icon: "💀", color: "#f97316", hp: 14, maxHp: 14, isEnemy: true, type: "Undead", x: 11, y: 8, size: 1 },
+    { id: "tok-" + uid(6), name: "Valen Ironshield", icon: "⚔️", color: "#3b82f6", hp: 48, maxHp: 48, isEnemy: false, type: "Fighter", x: 3, y: 6, size: 1 },
+  ];
+  forge.tokens = [
+    { id: "tok-" + uid(6), name: "Obsidian Dragon", icon: "🐉", color: "#dc2626", hp: 178, maxHp: 178, isEnemy: true, type: "Dragon", x: 8, y: 5, size: 2 },
+    { id: "tok-" + uid(6), name: "Theron Sunbearer", icon: "🛡️", color: "#f59e0b", hp: 52, maxHp: 52, isEnemy: false, type: "Paladin", x: 4, y: 6, size: 1 },
+  ];
+
+  return [cave, crossroads, forge];
+}
+
 function loadDndData() {
   if (fs.existsSync(DND_PATH)) {
     try {
@@ -147,6 +199,12 @@ function loadDndData() {
       if (!Array.isArray(dndData.campaigns)) dndData.campaigns = [];
       if (!Array.isArray(dndData.maps)) dndData.maps = [];
     } catch { dndData = { campaigns: [], maps: [] }; }
+  }
+  // Seed only on a genuinely empty install, and only for maps (campaigns stay
+  // the GM's to create).
+  if (!dndData.maps.length) {
+    dndData.maps = starterDndMaps();
+    try { saveDndData(); } catch {}
   }
 }
 function saveDndData() {
@@ -406,6 +464,9 @@ function lanAddresses() {
   const ifs = os.networkInterfaces();
   for (const [name, addrs] of Object.entries(ifs)) {
     if (!addrs) continue;
+    // Container bridges are host-internal only — nothing outside this box can
+    // reach them, so advertising them as share targets just adds dead links.
+    if (name.startsWith("br-") || name.startsWith("docker")) continue;
     for (const a of addrs) {
       if (a.family !== "IPv4" || a.internal) continue;
       if (name.startsWith("tailscale") || a.address.startsWith("100.")) continue;
@@ -415,18 +476,57 @@ function lanAddresses() {
   return out;
 }
 
-// The origin handed to clients in share links, and the one a wallet signs
-// against. On a LAN box that is a local interface; behind a proxy or in the
-// cloud there is no useful interface address, so PUBLIC_URL names the public
-// origin. It must be the https origin with no trailing slash.
+// The origin scheme, mirroring loadTls(): TLS is off only behind a proxy.
+function shareScheme() {
+  return process.env.BEHIND_PROXY ? "http" : "https";
+}
+
+// scripts/run-tunnel.sh points a quick Cloudflare tunnel at this port and
+// writes the hostname it gets into DATA/tunnel_url.txt, removing the file when
+// it restarts. That hostname is reachable from anywhere without port
+// forwarding, which makes it the best share target — but it changes every time
+// the tunnel restarts, so a leftover file can name a tunnel that is gone.
+//
+// Liveness is the file's EXISTENCE, not its age: the wrapper removes the file
+// on startup and the unit restarts it within seconds, so a missing file means
+// no tunnel. Do not add an mtime cap here — the file is written once per tunnel
+// start, so a healthy tunnel that has been up for days looks arbitrarily old
+// and an age cap would silently discard it. The wrapper does not refresh it.
+const TUNNEL_URL_PATH = path.join(DATA, "tunnel_url.txt");
+const TUNNEL_URL_CACHE_MS = 5000;
+let tunnelUrlCache = { at: 0, value: "" };
+
+// Called from viewFor() on every table broadcast, so cache rather than hit the
+// filesystem once per socket per action.
+function tunnelUrl() {
+  const t = Date.now();
+  if (t - tunnelUrlCache.at < TUNNEL_URL_CACHE_MS) return tunnelUrlCache.value;
+  let value = "";
+  try {
+    const v = fs.readFileSync(TUNNEL_URL_PATH, "utf8").trim().replace(/\/+$/, "");
+    if (/^https:\/\/[a-z0-9.-]+$/i.test(v)) value = v;
+  } catch {
+    /* no tunnel running */
+  }
+  tunnelUrlCache = { at: t, value };
+  return value;
+}
+
+// The origin handed to clients in share links. Highest priority first:
+// PUBLIC_URL is an explicit, stable choice; the quick-tunnel hostname is
+// publicly reachable but changes on tunnel restart; an interface address always
+// works but is raw. Wallet sign-in does NOT come from here — those messages
+// are built from the request host, so changing this cannot affect auth.
 function preferLanUrl() {
   const configured = (process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "");
   if (configured) return configured;
+  const tunnel = tunnelUrl();
+  if (tunnel) return tunnel;
   const addrs = lanAddresses();
   const eth = addrs.find((a) => a.iface.startsWith("en") || a.iface.startsWith("eth"));
   const pick = eth || addrs[0];
   const host = pick ? pick.address : "127.0.0.1";
-  return `https://${host}:${PORT}`;
+  return `${shareScheme()}://${host}:${PORT}`;
 }
 
 console.log("loading card catalog…");
@@ -1394,7 +1494,7 @@ function emptySeat() {
   };
 }
 
-function createTable({ name, format, hostId, hostName, hostUserId = null, wager = 0, timerEnabled = false }) {
+function createTable({ name, format, hostId, hostName, hostUserId = null, wager = 0, timerEnabled = true }) {
   const fmt = format || "duel";
   const w = Math.max(0, parseInt(wager) || 0);
   const t = {
@@ -1410,13 +1510,14 @@ function createTable({ name, format, hostId, hostName, hostUserId = null, wager 
     hostId,
     started: false,
     ended: false,
+    lastActivity: now(),
     turn: 1,
     phase: "main1",
     activeSeat: 0,
     firstTurn: true,
     autoUntap: true,
     autoDraw: true,
-    timerEnabled: !!timerEnabled,
+    timerEnabled: timerEnabled !== false,
     monarch: null,
     dayNight: null,
     created: now(),
@@ -1678,6 +1779,35 @@ function endGame(t, winnerSeat, reason) {
   }
 }
 
+const IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24h with no turns or actions
+
+// Resolve games that have sat untouched for a day. The table is *ended*, not
+// deleted, so the players can still come back and see the result (or rematch).
+// Higher life total takes it; equal life is a draw, which routes through
+// endGame's refund path and splits the pot back to both players.
+function sweepIdleTables() {
+  const cutoff = now() - IDLE_TIMEOUT_MS;
+  const settled = [];
+  for (const t of tables.values()) {
+    if (!t.started || t.ended) continue;
+    const last = t.lastActivity || t.created || 0;
+    if (last > cutoff) continue;
+    const la = t.seats[0] ? Number(t.seats[0].life) || 0 : 0;
+    const lb = t.seats[1] ? Number(t.seats[1].life) || 0 : 0;
+    if (la > lb) endGame(t, 0, "Table closed after 24h idle — higher life total");
+    else if (lb > la) endGame(t, 1, "Table closed after 24h idle — higher life total");
+    else endGame(t, null, "Table closed after 24h idle — equal life, draw");
+    t.idleClosed = true;
+    settled.push(t);
+  }
+  for (const t of settled) {
+    console.log(`Idle timeout: table ${t.code} (${t.name}) resolved — winner ${t.winnerSeat == null ? "draw" : t.winnerSeat}`);
+    broadcast(t);
+  }
+  if (settled.length) saveTables();
+  return settled.length;
+}
+
 function startGame(t) {
   if (t.started) return;
   if (!t.seats.every((s) => s.playerId && s.deckId)) {
@@ -1853,7 +1983,8 @@ function viewFor(t, playerId) {
     dayNight: t.dayNight,
     lastRoll: t.lastRoll,
     stack: t.stack || [],
-    timerEnabled: !!t.timerEnabled,
+    timerEnabled: t.timerEnabled !== false,
+    lastNudge: t.lastNudge || null,
     botDifficulty: t.botDifficulty || "normal",
     you: mySeat,
     seats,
@@ -1876,15 +2007,51 @@ function viewFor(t, playerId) {
   };
 }
 
-function creaturePower(card) {
-  const base = parseInt(card.power, 10);
+function creaturePower(card, seatObj = null) {
+  let base = parseInt(card.power, 10);
+  if (Number.isNaN(base)) {
+    const text = `${card.name || ""} ${card.type_line || ""} ${card.oracle_text || ""}`.toLowerCase();
+    if (text.includes("serra avatar") || text.includes("equal to your life total")) {
+      base = seatObj ? (Number(seatObj.life) || 0) : 20;
+    } else if (text.includes("equal to the number of cards in your hand")) {
+      base = seatObj && Array.isArray(seatObj.zones?.hand) ? seatObj.zones.hand.length : 0;
+    } else if (text.includes("equal to the number of creatures you control")) {
+      base = seatObj && Array.isArray(seatObj.zones?.battlefield)
+        ? seatObj.zones.battlefield.filter(isCreatureCard).length
+        : 0;
+    } else if (text.includes("equal to the number of lands you control")) {
+      base = seatObj && Array.isArray(seatObj.zones?.battlefield)
+        ? seatObj.zones.battlefield.filter(isLandCard).length
+        : 0;
+    } else {
+      base = 0;
+    }
+  }
   const plus = (card.counters && card.counters.p1p1) || 0;
   const minus = (card.counters && card.counters.m1m1) || 0;
   return Math.max(0, (Number.isNaN(base) ? 0 : base) + plus - minus);
 }
 
-function creatureToughness(card) {
-  const base = parseInt(card.toughness, 10);
+function creatureToughness(card, seatObj = null) {
+  let base = parseInt(card.toughness, 10);
+  if (Number.isNaN(base)) {
+    const text = `${card.name || ""} ${card.type_line || ""} ${card.oracle_text || ""}`.toLowerCase();
+    if (text.includes("serra avatar") || text.includes("equal to your life total")) {
+      base = seatObj ? (Number(seatObj.life) || 0) : 20;
+    } else if (text.includes("equal to the number of cards in your hand")) {
+      base = seatObj && Array.isArray(seatObj.zones?.hand) ? seatObj.zones.hand.length : 0;
+    } else if (text.includes("equal to the number of creatures you control")) {
+      base = seatObj && Array.isArray(seatObj.zones?.battlefield)
+        ? seatObj.zones.battlefield.filter(isCreatureCard).length
+        : 0;
+    } else if (text.includes("equal to the number of lands you control")) {
+      base = seatObj && Array.isArray(seatObj.zones?.battlefield)
+        ? seatObj.zones.battlefield.filter(isLandCard).length
+        : 0;
+    } else {
+      base = 0;
+    }
+  }
   const plus = (card.counters && card.counters.p1p1) || 0;
   const minus = (card.counters && card.counters.m1m1) || 0;
   return Math.max(0, (Number.isNaN(base) ? 0 : base) + plus - minus);
@@ -1928,30 +2095,78 @@ function resolveCombat(t) {
   if (!combat || combat.step !== "blockers") return;
   const atkSeat = combat.attackerSeat;
   const defSeat = (atkSeat + 1) % 2;
+  const atkPlayer = t.seats[atkSeat];
   const def = t.seats[defSeat];
   let playerDmg = 0;
   const deaths = [];
   for (const a of combat.attackers) {
     const atkFound = findCard(t, a.iid);
-    const aPow = atkFound ? creaturePower(atkFound.card) : a.power;
+    const aCard = atkFound ? atkFound.card : null;
+    const aPow = aCard ? creaturePower(aCard, atkPlayer) : a.power;
+    const aTou = aCard ? creatureToughness(aCard, atkPlayer) : 0;
+    const aText = `${aCard?.name || ""} ${aCard?.type_line || ""} ${aCard?.oracle_text || ""} ${(aCard?.keywords || []).join(" ")}`;
+    const aTrample = /\bTrample\b/i.test(aText);
+    const aDeathtouch = /\bDeathtouch\b/i.test(aText);
+    const aLifelink = /\bLifelink\b/i.test(aText);
+
     if (!a.blockedBy) {
       playerDmg += aPow;
+      if (aLifelink && atkPlayer && aPow > 0) {
+        atkPlayer.life += aPow;
+        log(t, `💖 ${atkPlayer.name} gained ${aPow} life from ${a.name}'s lifelink`, atkSeat);
+      }
       log(t, `⚔️ ${a.name} is not blocked (${aPow} damage)`, atkSeat);
       continue;
     }
     const blkFound = findCard(t, a.blockedBy);
     if (!blkFound) {
-      playerDmg += aPow;
+      if (aTrample) {
+        playerDmg += aPow;
+        log(t, `⚔️ Blocker for ${a.name} removed — trample deals ${aPow} to ${def.name}`, atkSeat);
+      } else {
+        log(t, `⚔️ Blocker for ${a.name} removed; creature remains blocked (0 damage to ${def.name})`, atkSeat);
+      }
       continue;
     }
-    const bPow = creaturePower(blkFound.card);
-    const bTou = creatureToughness(blkFound.card);
-    const aTou = atkFound ? creatureToughness(atkFound.card) : 0;
-    log(t, `🛡️ ${blkFound.card.name} blocks ${a.name}`, defSeat);
-    if (aPow >= bTou && bTou >= 0) deaths.push(a.blockedBy);
-    if (atkFound && bPow >= aTou) deaths.push(a.iid);
+    const bCard = blkFound.card;
+    const bPow = creaturePower(bCard, def);
+    const bTou = creatureToughness(bCard, def);
+    const bText = `${bCard?.name || ""} ${bCard?.type_line || ""} ${bCard?.oracle_text || ""} ${(bCard?.keywords || []).join(" ")}`;
+    const bDeathtouch = /\bDeathtouch\b/i.test(bText);
+    const bLifelink = /\bLifelink\b/i.test(bText);
+
+    log(t, `🛡️ ${bCard.name} (${bPow}/${bTou}) blocks ${a.name} (${aPow}/${aTou})`, defSeat);
+
+    // Trample excess damage to defending player
+    if (aTrample && aPow > bTou) {
+      const trampleDmg = Math.max(0, aPow - Math.max(0, bTou));
+      playerDmg += trampleDmg;
+      log(t, `🦏 ${a.name} tramples over ${bCard.name} for ${trampleDmg} damage to ${def.name}!`, atkSeat);
+    }
+
+    // Attacker lifelink
+    if (aLifelink && atkPlayer && aPow > 0) {
+      atkPlayer.life += aPow;
+      log(t, `💖 ${atkPlayer.name} gained ${aPow} life from ${a.name}'s lifelink`, atkSeat);
+    }
+
+    // Blocker lifelink
+    if (bLifelink && def && bPow > 0) {
+      def.life += bPow;
+      log(t, `💖 ${def.name} gained ${bPow} life from ${bCard.name}'s lifelink`, defSeat);
+    }
+
+    // Lethal damage checks:
+    // Attacker kills blocker if aPow >= bTou (with aPow > 0) OR deathtouch (with aPow > 0) OR bTou <= 0
+    if ((aPow > 0 && aPow >= bTou && bTou > 0) || bTou <= 0 || (aDeathtouch && aPow > 0)) {
+      deaths.push(a.blockedBy);
+    }
+    // Blocker kills attacker if bPow >= aTou (with bPow > 0) OR deathtouch (with bPow > 0) OR aTou <= 0
+    if ((bPow > 0 && bPow >= aTou && aTou > 0) || aTou <= 0 || (bDeathtouch && bPow > 0)) {
+      deaths.push(a.iid);
+    }
   }
-  for (const iid of deaths) {
+  for (const iid of [...new Set(deaths)]) {
     const dead = buryCreature(t, iid);
     if (dead) log(t, `💀 ${dead.name} dies in combat`);
   }
@@ -1969,6 +2184,8 @@ function resolveCombat(t) {
 }
 
 function applyAction(t, playerId, a) {
+  // Any real turn/action keeps the table off the idle-timeout clock.
+  t.lastActivity = now();
   const seat = findSeat(t, playerId);
   if (seat < 0) throw new Error("not seated");
   const me = t.seats[seat];
@@ -1990,6 +2207,22 @@ function applyAction(t, playerId, a) {
       t.timerEnabled = !!a.enabled;
       log(t, `⏱️ ${me.name} ${t.timerEnabled ? "enabled phase countdown timer" : "disabled phase timer (relaxed casual mode)"}`, seat);
       saveTables();
+      return;
+    }
+    case "nudge": {
+      if (!t.started || t.ended) return;
+      const targetSeat = t.activeSeat;
+      const targetPlayer = t.seats[targetSeat];
+      t.lastNudge = {
+        fromSeat: seat,
+        fromName: me.name,
+        toSeat: targetSeat,
+        at: now(),
+      };
+      log(t, `🔔 ${me.name} nudged ${targetPlayer ? targetPlayer.name : "active player"} to act or pass the turn!`, seat);
+      if (targetPlayer && targetPlayer.isBot) {
+        setTimeout(() => maybeRunBot(t), 200);
+      }
       return;
     }
     case "chat": {
@@ -2150,6 +2383,16 @@ function applyAction(t, playerId, a) {
         return;
       }
       const key = String(a.counter || "p1p1").slice(0, 24);
+      // Absolute set, for the counter dialog's typed input. Using `set` instead
+      // of a computed delta keeps the value exact even if the client and server
+      // disagree about the current count.
+      if (a.set !== undefined) {
+        const target = Math.max(0, Math.min(999, Math.trunc(Number(a.set) || 0)));
+        if (target <= 0) delete found.card.counters[key];
+        else found.card.counters[key] = target;
+        log(t, `${found.card.name} ${key} set to ${target} ✍️`, seat);
+        return;
+      }
       const delta = Number(a.delta || 0);
       const cur = found.card.counters[key] || 0;
       const next = cur + delta;
@@ -2230,7 +2473,7 @@ function applyAction(t, playerId, a) {
         attackers.push({
           iid: card.iid,
           name: card.name,
-          power: creaturePower(card),
+          power: creaturePower(card, me),
           blockedBy: null,
           blockerName: null,
         });
@@ -2329,6 +2572,31 @@ function applyAction(t, playerId, a) {
       log(t, `${me.name} created ${n}× ${card.name}`, seat);
       return;
     }
+    case "bell": {
+      // "Hey, look at me" — a short audible nudge for the opponent. The
+      // cooldown is tracked per seat so one player spamming the bell cannot
+      // silence the other player's, and vice versa.
+      if (!t._lastBell || typeof t._lastBell !== "object") t._lastBell = {};
+      if (now() - (t._lastBell[seat] || 0) < 3000) return;
+      t._lastBell[seat] = now();
+      log(t, `🔔 ${me.name} rang the bell`, seat);
+      // Only the other seat is paged; ringing your own bell does nothing.
+      const otherSeat = t.seats.findIndex((s, i) => i !== seat);
+      if (otherSeat >= 0) {
+        const other = t.seats[otherSeat];
+        for (const ws of sockets) {
+          if (ws.readyState !== 1 || ws.tableCode !== t.code) continue;
+          if (findSeat(t, ws.playerId) === otherSeat) {
+            try {
+              ws.send(JSON.stringify({ t: "bell", from: me.name }));
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+      return;
+    }
     case "roll": {
       const sides = Math.max(2, Math.min(100, Number(a.sides || 20)));
       const n = Math.max(1, Math.min(20, Number(a.n || 1)));
@@ -2362,6 +2630,30 @@ function applyAction(t, playerId, a) {
     case "concede": {
       const oppSeat = (seat + 1) % 2;
       endGame(t, oppSeat, `${me.name} conceded`);
+      return;
+    }
+    case "closeTable": {
+      // Leaving via the X forfeits: the other player takes the match, and the
+      // table is torn down so the code can't be rejoined.
+      const oppSeat = (seat + 1) % 2;
+      if (t.started && !t.ended) endGame(t, oppSeat, `${me.name} closed the table`);
+      t.ended = true;
+      t.closedBy = me.name;
+      log(t, `✖️ ${me.name} closed the table.`, seat);
+      // Push the resolved result *before* tearing the table down, otherwise
+      // the winner never learns they won and the pot award is invisible.
+      broadcast(t);
+      tables.delete(t.code);
+      saveTables();
+      for (const ws of sockets) {
+        if (ws.readyState !== 1 || ws.tableCode !== t.code) continue;
+        ws.tableCode = null;
+        try {
+          ws.send(JSON.stringify({ t: "closed", error: `${me.name} closed the table` }));
+        } catch {
+          /* ignore */
+        }
+      }
       return;
     }
     case "declareWinner": {
@@ -2699,7 +2991,7 @@ function executeBotTurn(t, seatIdx) {
             return {
               iid: c.iid,
               name: c.name,
-              power: creaturePower(c),
+              power: creaturePower(c, bot),
               blockedBy: null,
               blockerName: null,
             };
@@ -2793,6 +3085,20 @@ function awardXp(u, amount, reason) {
     gained,
   };
 }
+
+// Every place XP is handed out, in one place so the in-game "Ways to Earn XP"
+// list cannot drift from the values awardXp() is actually called with. Keep in
+// step with the awardXp() call sites: match victory, AI bonus, match
+// participation, quest completion, daily streak, achievements.
+const XP_SOURCES = [
+  { id: "win_wagered", icon: "👑", name: "Win a Wagered Match", desc: "Win a match where gold was on the line.", xp: 100 },
+  { id: "win_played", icon: "🏆", name: "Win a Match", desc: "Win any friendly or AI match.", xp: 75 },
+  { id: "beat_ai", icon: "🤖", name: "Defeat the AI", desc: "Bonus on top of a win, for beating a bot opponent.", xp: 25 },
+  { id: "participate", icon: "⚔️", name: "Finish a Match", desc: "Showed up and played — awarded even in a loss.", xp: 30 },
+  { id: "quest", icon: "📜", name: "Complete a Daily Quest", desc: "Finish one of today's four rotating quests.", xp: 50 },
+  { id: "daily", icon: "📅", name: "Claim Your Daily Reward", desc: "Keep the login streak alive for bigger payouts.", xp: 50 },
+  { id: "achievement", icon: "🏯", name: "Unlock an Achievement", desc: "One-off objectives across your whole career.", xp: 50 },
+];
 
 function collectionCount(u) {
   if (!u || !u.collection) return 0;
@@ -4215,13 +4521,16 @@ app.put("/api/dnd/maps/:id", (req, res) => {
     map = { id: req.params.id, name: "Battlemap", width: 20, height: 14, tiles: {}, tokens: [] };
     dndData.maps.unshift(map);
   }
-  const { name, width, height, campaignId, tiles, tokens } = req.body || {};
+  const { name, width, height, campaignId, tiles, tokens, fog } = req.body || {};
   if (name) map.name = String(name).slice(0, 60);
   if (width) map.width = Math.max(10, Math.min(40, parseInt(width, 10) || 20));
   if (height) map.height = Math.max(8, Math.min(30, parseInt(height, 10) || 14));
   if (campaignId !== undefined) map.campaignId = campaignId;
   if (tiles) map.tiles = tiles;
   if (Array.isArray(tokens)) map.tokens = tokens;
+  // Per-cell revealed set used by the GM's fog-of-war toggle.
+  if (fog && typeof fog === "object") map.fog = fog;
+  else if (fog === null) delete map.fog;
   saveDndData();
   res.json({ ok: true, map });
 });
@@ -4233,7 +4542,7 @@ app.get("/api/info", (_req, res) => {
     port: PORT,
     lan,
     url: preferLanUrl(),
-    urls: lan.map((a) => `http://${a.address}:${PORT}`),
+    urls: lan.map((a) => `${shareScheme()}://${a.address}:${PORT}`),
     catalog: catalogMeta,
     cardCount: cards.length,
     oldPrintings: oldPrintings.length,
@@ -4662,6 +4971,12 @@ app.get("/api/quests", (req, res) => {
     }),
     daily,
     balance: user.balance,
+    level: user.level,
+    xp: user.xp,
+    xpNeeded: getXpNeeded(user.level),
+    totalXp: (user.stats && user.stats.totalXp) || 0,
+    xpSources: XP_SOURCES,
+    questsDone: (user.stats && user.stats.questsDone) || 0,
   });
 });
 
@@ -4732,6 +5047,68 @@ app.post("/api/draft/deck", (req, res) => {
     res.json({ ok: true, deck });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// RPG map static mount and JSON parser endpoint
+app.use("/rpg-world/maps", express.static(path.join(ROOT, "rpg-world", "maps")));
+
+app.get(["/api/rpg/map", "/api/rpg/map/:name"], (req, res) => {
+  const mapName = (req.params.name || "homeroom").replace(/[^a-zA-Z0-9_-]/g, "");
+  const tmxPath = path.join(ROOT, "rpg-world", "maps", `${mapName}.tmx`);
+  if (!fs.existsSync(tmxPath)) {
+    return res.status(404).json({ error: `Map ${mapName} not found` });
+  }
+  try {
+    const content = fs.readFileSync(tmxPath, "utf8");
+    const width = parseInt((content.match(/width="(\d+)"/) || [])[1] || 40, 10);
+    const height = parseInt((content.match(/height="(\d+)"/) || [])[1] || 25, 10);
+    const tilewidth = parseInt((content.match(/tilewidth="(\d+)"/) || [])[1] || 32, 10);
+    const tileheight = parseInt((content.match(/tileheight="(\d+)"/) || [])[1] || 32, 10);
+    
+    const csvMatch = content.match(/<data encoding="csv">([\s\S]*?)<\/data>/);
+    const data = csvMatch ? csvMatch[1].trim().split(/[\s,]+/).filter(Boolean).map(Number) : [];
+
+    const objects = [];
+    const objRegex = /<object\s+([^>]+)\/>/g;
+    let m;
+    while ((m = objRegex.exec(content)) !== null) {
+      const attrs = m[1];
+      const name = (attrs.match(/name="([^"]+)"/) || [])[1] || "";
+      const x = parseFloat((attrs.match(/x="([^"]+)"/) || [])[1] || 0);
+      const y = parseFloat((attrs.match(/y="([^"]+)"/) || [])[1] || 0);
+      const w = parseFloat((attrs.match(/width="([^"]+)"/) || [])[1] || 0);
+      const h = parseFloat((attrs.match(/height="([^"]+)"/) || [])[1] || 0);
+      objects.push({ name, x, y, width: w, height: h });
+    }
+
+    res.json({
+      name: mapName,
+      width,
+      height,
+      tilewidth,
+      tileheight,
+      pixelWidth: width * tilewidth,
+      pixelHeight: height * tileheight,
+      tileset: {
+        image: "/assets/tiles/world.png",
+        fallbackImage: "/rpg-world/maps/tiles/world.png",
+        tilewidth: 32,
+        tileheight: 32,
+        columns: 2,
+        tilecount: 4,
+        collisions: [false, true, false, true]
+      },
+      layers: [
+        {
+          name: "ground",
+          data
+        }
+      ],
+      objects
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -5043,6 +5420,10 @@ function handleWs(ws, msg) {
 
 server.listen(PORT, HOST, () => {
   const scheme = tls ? "https" : "http";
+  // Catch up on anything that expired while the server was down, then keep
+  // checking. Hourly is plenty for a 24h threshold and cheap.
+  sweepIdleTables();
+  setInterval(sweepIdleTables, 60 * 60 * 1000).unref?.();
   console.log(`The Crypto Game ${scheme.toUpperCase()} on ${HOST}:${PORT}`);
   console.log(`Local:  ${scheme}://127.0.0.1:${PORT}`);
   for (const a of lanAddresses()) console.log(`LAN:    ${scheme}://${a.address}:${PORT}`);
