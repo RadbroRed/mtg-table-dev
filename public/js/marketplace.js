@@ -219,12 +219,12 @@
 
     async function handleBuyCard(cardObj, count = 1) {
       user = getCachedUser(second);
-      let curBalance = typeof user?.balance === "number" ? user.balance : 0;
+      let curBalance = typeof user?.tcgBalance === "number" ? user.tcgBalance : (typeof user?.balance === "number" ? user.balance : 0);
       const unitPrice = cardObj.price || getCardPrice(cardObj.rarity);
       const totalPrice = unitPrice * count;
 
       if (curBalance < totalPrice) {
-        toast(`⚠️ Not enough Gold! You need ${totalPrice} 🪙 Gold, but only have ${curBalance} 🪙.`);
+        toast(`⚠️ Not enough $TCG! You need ${totalPrice} 🪙 $TCG, but only have ${curBalance} 🪙.`);
         window.MTG_SFX && window.MTG_SFX.play && window.MTG_SFX.play("buzz");
         return;
       }
@@ -232,16 +232,18 @@
       curBalance -= totalPrice;
       if (user) {
         user.balance = curBalance;
+        user.tcgBalance = curBalance;
         setCachedUser(user, second);
         // Persist to backend
         api("/api/auth/profile", {
           method: "POST",
           second,
-          body: { balance: curBalance }
+          body: { balance: curBalance, tcgBalance: curBalance }
         }).catch(() => {});
       } else {
         const curMe = identity(second);
         curMe.balance = curBalance;
+        curMe.tcgBalance = curBalance;
         setCachedUser(curMe, second);
       }
 
@@ -262,10 +264,12 @@
       // Effects & Notification
       window.MTG_SFX && window.MTG_SFX.play && window.MTG_SFX.play("coin");
       sparkle(window.innerWidth / 2, window.innerHeight / 2, "gold");
-      toast(`🪙 Purchased ${count > 1 ? `${count}x ` : ""}"${cardObj.name}" for ${totalPrice} Gold!`);
+      toast(`🪙 Purchased ${count > 1 ? `${count}x ` : ""}"${cardObj.name}" for ${totalPrice} $TCG!`);
 
       // Update RPG vitals and player card
-      if (window.MTG_RPG?.updateUser) window.MTG_RPG.updateUser(user || { balance: curBalance });
+      if (window.MTG_RPG?.updateUser) window.MTG_RPG.updateUser(user || { balance: curBalance, tcgBalance: curBalance });
+      const tcgTxt = document.getElementById("dfk-card-tcg");
+      if (tcgTxt) tcgTxt.textContent = curBalance.toLocaleString();
       const goldTxt = document.getElementById("dfk-card-gold");
       if (goldTxt) goldTxt.textContent = curBalance.toLocaleString();
 
@@ -279,15 +283,17 @@
       const refund = Math.max(10, Math.floor((card.price || getCardPrice(card.rarity)) * 0.5));
 
       user = getCachedUser(second);
-      let curBalance = (typeof user?.balance === "number" ? user.balance : 0) + refund;
+      let curBalance = (typeof user?.tcgBalance === "number" ? user.tcgBalance : (typeof user?.balance === "number" ? user.balance : 0)) + refund;
 
       if (user) {
         user.balance = curBalance;
+        user.tcgBalance = curBalance;
         setCachedUser(user, second);
-        api("/api/auth/profile", { method: "POST", second, body: { balance: curBalance } }).catch(() => {});
+        api("/api/auth/profile", { method: "POST", second, body: { balance: curBalance, tcgBalance: curBalance } }).catch(() => {});
       } else {
         const curMe = identity(second);
         curMe.balance = curBalance;
+        curMe.tcgBalance = curBalance;
         setCachedUser(curMe, second);
       }
 
@@ -295,9 +301,11 @@
       saveUserCollection(collection);
 
       window.MTG_SFX && window.MTG_SFX.play && window.MTG_SFX.play("coin");
-      toast(`🪙 Sold "${card.name}" to the Goblin Trader for +${refund} Gold!`);
+      toast(`🪙 Sold "${card.name}" to the Goblin Trader for +${refund} $TCG!`);
 
-      if (window.MTG_RPG?.updateUser) window.MTG_RPG.updateUser(user || { balance: curBalance });
+      if (window.MTG_RPG?.updateUser) window.MTG_RPG.updateUser(user || { balance: curBalance, tcgBalance: curBalance });
+      const tcgTxt = document.getElementById("dfk-card-tcg");
+      if (tcgTxt) tcgTxt.textContent = curBalance.toLocaleString();
       const goldTxt = document.getElementById("dfk-card-gold");
       if (goldTxt) goldTxt.textContent = curBalance.toLocaleString();
 
@@ -306,18 +314,19 @@
 
     async function handleBuyBooster(packName, cost = 150) {
       user = getCachedUser(second);
-      let curBalance = typeof user?.balance === "number" ? user.balance : 0;
+      let curBalance = typeof user?.tcgBalance === "number" ? user.tcgBalance : (typeof user?.balance === "number" ? user.balance : 0);
 
       if (curBalance < cost) {
-        toast(`⚠️ Need ${cost} 🪙 Gold to crack a booster pack!`);
+        toast(`⚠️ Need ${cost} 🪙 $TCG to crack a booster pack!`);
         return;
       }
 
       curBalance -= cost;
       if (user) {
         user.balance = curBalance;
+        user.tcgBalance = curBalance;
         setCachedUser(user, second);
-        api("/api/auth/profile", { method: "POST", second, body: { balance: curBalance } }).catch(() => {});
+        api("/api/auth/profile", { method: "POST", second, body: { balance: curBalance, tcgBalance: curBalance } }).catch(() => {});
       }
 
       // Fetch 15 random cards for the pack
@@ -343,7 +352,9 @@
         toast(`🎉 Opened 15 cards from ${packName}! Added to your Multiverse Deckbox!`);
         sparkle(window.innerWidth / 2, window.innerHeight / 2, "gold");
 
-        if (window.MTG_RPG?.updateUser) window.MTG_RPG.updateUser(user || { balance: curBalance });
+        if (window.MTG_RPG?.updateUser) window.MTG_RPG.updateUser(user || { balance: curBalance, tcgBalance: curBalance });
+        const tcgTxt = document.getElementById("dfk-card-tcg");
+        if (tcgTxt) tcgTxt.textContent = curBalance.toLocaleString();
         const goldTxt = document.getElementById("dfk-card-gold");
         if (goldTxt) goldTxt.textContent = curBalance.toLocaleString();
         
@@ -356,7 +367,8 @@
 
     function render() {
       user = getCachedUser(second);
-      const goldBal = typeof user?.balance === "number" ? user.balance : 0;
+      const goldBal = typeof user?.tcgBalance === "number" ? user.tcgBalance : (typeof user?.balance === "number" ? user.balance : 0);
+      const ggBal = typeof user?.ggBalance === "number" ? user.ggBalance : ((user?.displayName === "Amber" || user?.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
       const collection = getUserCollection();
 
       const html = `
@@ -372,7 +384,7 @@
                     The Oracle Bazaar · Card Marketplace
                   </h2>
                   <p class="muted" style="margin:2px 0 0 0; font-size:12px; color:#c4b595;">
-                    Goblin Trade Depot & Diablo 2 Rogue Encampment Auction House. Buy singles, crack booster packs, and trade for Gold!
+                    Goblin Trade Depot & Diablo 2 Rogue Encampment Auction House. Buy singles, crack booster packs, and trade with $TCG!
                   </p>
                 </div>
               </div>
@@ -386,17 +398,17 @@
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size:24px;">🪙</span>
                 <div>
-                  <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.06em;">WIZARD TREASURY</div>
+                  <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.06em;">$TCG BALANCE</div>
                   <div style="font-size:16px; font-weight:bold; color:var(--gold-2, #f5d061); text-shadow:0 1px 2px #000;">
-                    ${goldBal.toLocaleString()} <small style="font-size:11px; color:#d1d5db;">Gold</small>
+                    ${goldBal.toLocaleString()} <small style="font-size:11px; color:#d1d5db;">$TCG</small>
                   </div>
                 </div>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size:24px;">💎</span>
                 <div>
-                  <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.06em;">LOTUS GEMS</div>
-                  <div style="font-size:15px; font-weight:bold; color:#67e8f9;">25 <small style="font-size:11px; color:#9ca3af;">Lotus</small></div>
+                  <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.06em;">$GG GUILD RESERVE</div>
+                  <div style="font-size:15px; font-weight:bold; color:#c084fc;">${ggBal.toLocaleString()} <small style="font-size:11px; color:#9ca3af;">$GG</small></div>
                 </div>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
@@ -486,7 +498,7 @@
 
                     <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
                       <div style="font-weight:bold; font-size:13px; color:var(--gold-2);">
-                        🪙 ${d.price.toLocaleString()} <small style="font-size:10px; color:#9ca3af;">Gold</small>
+                        🪙 ${d.price.toLocaleString()} <small style="font-size:10px; color:#9ca3af;">$TCG</small>
                       </div>
                       <div style="display:flex; gap:6px;">
                         <button type="button" class="btn small ${canAfford ? 'gold' : 'ghost'} btn-buy-featured" data-fid="${d.id}" data-cnt="1" ${canAfford ? '' : 'disabled'} title="Buy 1 card">
@@ -566,7 +578,7 @@
 
                       <div style="margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.06);">
                         <div style="font-size:12px; font-weight:bold; color:var(--gold-2); margin-bottom:6px;">
-                          🪙 ${price} Gold
+                          🪙 ${price} $TCG
                         </div>
                         <button type="button" class="btn small ${canAfford ? 'gold' : 'ghost'} btn-buy-oracle" data-cid="${c.id}" ${canAfford ? '' : 'disabled'} style="width:100%; padding:4px 6px; font-size:11px;">
                           Buy 1x
@@ -646,7 +658,7 @@
 
                   <div style="pt:12px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
                     <div style="font-weight:bold; font-size:15px; color:var(--gold-2);">
-                      🪙 ${p.cost} Gold
+                      🪙 ${p.cost} $TCG
                     </div>
                     <button type="button" class="btn small ${canAfford ? 'gold' : 'ghost'} btn-buy-pack" data-pname="${escapeHtml(p.name)}" data-pcost="${p.cost}" ${canAfford ? '' : 'disabled'}>
                       🎁 Open Pack (15 Cards)
@@ -666,10 +678,10 @@
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
             <div>
               <h3 style="margin:0; font-family:'Cinzel', serif; color:var(--gold-2); font-size:17px;">
-                💰 Goblin Pawn Trade — Sell Cards for Gold
+                💰 Goblin Pawn Trade — Sell Cards for $TCG
               </h3>
               <p class="muted" style="margin:2px 0 0 0; font-size:12px;">
-                Sell surplus singles from your personal deckbox collection for 50% Gold refund.
+                Sell surplus singles from your personal deckbox collection for 50% $TCG refund.
               </p>
             </div>
             <span class="chip ghost" style="font-size:11px;">${collection.length} Singles in Deckbox</span>
@@ -690,10 +702,10 @@
                           ${escapeHtml(c.name)}
                         </div>
                         <div style="font-size:11px; color:var(--gold); margin-top:2px;">
-                          +${refund} 🪙 Gold
+                          +${refund} 🪙 $TCG
                         </div>
                       </div>
-                      <button type="button" class="btn small danger btn-sell-card" data-idx="${idx}" title="Sell card for gold" style="padding:4px 8px; font-size:11px;">
+                      <button type="button" class="btn small danger btn-sell-card" data-idx="${idx}" title="Sell card for $TCG" style="padding:4px 8px; font-size:11px;">
                         Sell
                       </button>
                     </div>

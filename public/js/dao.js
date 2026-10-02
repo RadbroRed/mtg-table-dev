@@ -56,7 +56,7 @@
             <div class="dao-stat-icon">🪙</div>
             <div class="dao-stat-info">
               <div class="dao-stat-label">Multiverse Treasury Vault</div>
-              <div class="dao-stat-val"><b>${balance}</b> 🪙 Gold</div>
+              <div class="dao-stat-val"><b>${balance}</b> 🪙 $TCG</div>
             </div>
           </div>
           <div class="dao-stat-box">
@@ -70,7 +70,7 @@
             <div class="dao-stat-icon">🏆</div>
             <div class="dao-stat-info">
               <div class="dao-stat-label">Total Match Fees Collected</div>
-              <div class="dao-stat-val"><b>${totalCol}</b> 🪙 Gold</div>
+              <div class="dao-stat-val"><b>${totalCol}</b> 🪙 $TCG</div>
             </div>
           </div>
         </div>
@@ -97,7 +97,7 @@
             </div>
           </div>
           <div id="dao-fee-preview" class="faint" style="margin-top:12px;font-size:13px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px">
-            Simulation: In a 1,000 🪙 pot match, Winner takes <b>${(1000 - Math.floor(1000 * fee / 100)).toLocaleString()} 🪙</b> and DAO Treasury receives <b>${Math.floor(1000 * fee / 100).toLocaleString()} 🪙</b>.
+            Simulation: In a 1,000 $TCG pot match, Winner takes <b>${(1000 - Math.floor(1000 * fee / 100)).toLocaleString()} $TCG</b> and DAO Treasury receives <b>${Math.floor(1000 * fee / 100).toLocaleString()} $TCG</b>.
           </div>
         </div>
 
@@ -118,7 +118,7 @@
                     return `
               <div class="dao-prop-card card-panel" data-prop-id="${p.id}">
                 <div class="dao-prop-head">
-                  <span class="chip gold" style="font-size:11px">Requested: <b>${(p.cost || 0).toLocaleString()} 🪙</b></span>
+                  <span class="chip gold" style="font-size:11px">Requested: <b>${(p.cost || 0).toLocaleString()} 🪙 $TCG</b></span>
                   <span class="chip ${p.status === "active" ? "green" : "muted"}">${p.status === "active" ? "✨ Active Voting" : "Passed"}</span>
                 </div>
                 <h3 class="dao-prop-title">${escapeHtml(p.title)}</h3>
@@ -177,7 +177,7 @@
                   <tr>
                     <td class="faint">${date}</td>
                     <td><span class="chip ${isFee ? "gold" : "ghost"}" style="font-size:11px">${isFee ? "🪙 3% Match Fee" : t.type}</span></td>
-                    <td style="color:${isFee ? "var(--life)" : "var(--gold)"};font-weight:700">+${(t.amount || 0).toLocaleString()} 🪙</td>
+                    <td style="color:${isFee ? "var(--life)" : "var(--gold)"};font-weight:700">+${(t.amount || 0).toLocaleString()} 🪙 $TCG</td>
                     <td>${escapeHtml(t.description)}</td>
                   </tr>
                 `;
@@ -226,7 +226,7 @@
         const feeGold = Math.floor(1000 * f / 100);
         const winGold = 1000 - feeGold;
         if (feePreview) {
-          feePreview.innerHTML = `Simulation: In a 1,000 🪙 pot match, Winner takes <b>${winGold.toLocaleString()} 🪙</b> and DAO Treasury receives <b>${feeGold.toLocaleString()} 🪙</b>.`;
+          feePreview.innerHTML = `Simulation: In a 1,000 $TCG pot match, Winner takes <b>${winGold.toLocaleString()} $TCG</b> and DAO Treasury receives <b>${feeGold.toLocaleString()} $TCG</b>.`;
         }
       }
       $$(".btn-fee-preset").forEach((btn) => {
@@ -300,14 +300,14 @@
           <form id="prop-form" style="margin-top:16px">
             <div class="field">
               <label>Initiative Title</label>
-              <input type="text" id="prop-title" required minlength="5" maxlength="100" placeholder="e.g. Host Friday Commander Tournament with 5,000 Gold Bounty" />
+              <input type="text" id="prop-title" required minlength="5" maxlength="100" placeholder="e.g. Host Friday Commander Tournament with 5,000 $TCG Bounty" />
             </div>
             <div class="field">
               <label>Description & Multiverse Impact</label>
               <textarea id="prop-desc" required minlength="10" rows="4" placeholder="Explain the initiative, rules, and how it benefits players on the LAN..."></textarea>
             </div>
             <div class="field">
-              <label>Requested Treasury Gold (🪙)</label>
+              <label>Requested Treasury $TCG (🪙)</label>
               <input type="number" id="prop-cost" min="100" max="10000" value="1000" required />
             </div>
             <div class="row" style="margin-top:18px;gap:10px">

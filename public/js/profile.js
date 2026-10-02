@@ -141,8 +141,9 @@
       }
       const isRegistered = !!(user && user.username);
       const curSkinId = getSkin ? getSkin(second) : "arcane";
-      const curSkin = (SKINS && SKINS.find((s) => s.id === curSkinId)) || { name: "Classic Arcane", icon: "✨" };
       const balance = user && typeof user.balance === "number" ? user.balance : 0;
+      const tcgBal = user && typeof user.tcgBalance === "number" ? user.tcgBalance : balance;
+      const ggBal = user && typeof user.ggBalance === "number" ? user.ggBalance : ((user?.displayName === "Amber" || user?.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
       const level = user && typeof user.level === "number" ? user.level : 1;
       const xp = user && typeof user.xp === "number" ? user.xp : 0;
       const xpNeeded = user && typeof user.xpNeeded === "number" ? user.xpNeeded : (level * 100);
@@ -255,7 +256,7 @@
               <p>Welcome, planeswalker! Create your wizard character, choose a familiar companion, connect your Web3 wallet, or log in to command the tables.</p>
               
               <div class="portal-perks-row">
-                <span class="portal-perk-chip">🪙 +1,000 Starter Gold</span>
+                <span class="portal-perk-chip">🪙 +1,000 Starter $TCG</span>
                 <span class="portal-perk-chip">🎴 Custom Deck Builder</span>
                 <span class="portal-perk-chip">🦊 Sepolia Web3 Signer</span>
                 <span class="portal-perk-chip">🏆 Multiverse Leaderboard</span>
@@ -308,7 +309,7 @@
                             <b>${escapeHtml(t.name)}</b>
                             <div class="faint" style="font-size:11px">
                               ${escapeHtml(t.code)} · ${escapeHtml(t.format)} · 
-                              ${t.wager ? `<span style="color:var(--gold)">🪙 ${t.wager} Gold</span>` : "Casual"}
+                              ${t.wager ? `<span style="color:var(--gold)">🪙 ${t.wager} $TCG</span>` : "Casual"}
                             </div>
                           </div>
                           <a class="btn small gold" href="#/table/${escapeHtml(t.code)}">Sit</a>
@@ -332,7 +333,7 @@
                         <div class="mini-lb-item">
                           <span class="mini-lb-rank">${i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}</span>
                           <span class="mini-lb-name"><b>${escapeHtml(u.displayName || u.username)}</b></span>
-                          <span class="mini-lb-score">🪙 ${(u.balance || 0).toLocaleString()}</span>
+                          <span class="mini-lb-score">🪙 ${(u.tcgBalance ?? u.balance ?? 0).toLocaleString()} $TCG</span>
                           <span class="mini-lb-wl faint">${u.wins || 0}W</span>
                         </div>
                       `).join("")
@@ -440,10 +441,14 @@
                 </div>
 
                 <!-- Treasury Balance Bar -->
-                <div class="profile-balance-strip">
-                  <div class="profile-balance-stat">
-                    <span class="balance-label">TREASURY BALANCE</span>
-                    <span class="balance-gold">🪙 <b>${balance.toLocaleString()}</b> Gold</span>
+                <div class="profile-balance-strip" style="display:flex;gap:12px;flex-wrap:wrap;">
+                  <div class="profile-balance-stat" style="flex:1;min-width:140px;">
+                    <span class="balance-label">$TCG TOKEN TREASURY</span>
+                    <span class="balance-gold">🪙 <b>${tcgBal.toLocaleString()}</b> <small style="font-size:12px;font-weight:700;">$TCG</small></span>
+                  </div>
+                  <div class="profile-balance-stat" style="flex:1;min-width:140px;">
+                    <span class="balance-label">$GG GUILD RESERVE</span>
+                    <span class="balance-gold" style="color:#c084fc;">💎 <b>${ggBal.toLocaleString()}</b> <small style="font-size:12px;font-weight:700;">$GG</small></span>
                   </div>
                 </div>
               </div>
@@ -459,7 +464,7 @@
 
           <!-- Battle Record & Stats Grid -->
           <div class="section-title" style="margin-top:24px">🏆 Planeswalker Achievements & Battle Records</div>
-          <div class="profile-stats-grid">
+          <div class="profile-stats-grid" style="display:grid;grid-template-columns:repeat(5, 1fr);gap:10px;">
             <div class="stat-box card-panel" style="padding:14px;text-align:center">
               <div class="faint" style="font-size:11px">WIN STREAK</div>
               <div style="font-size:24px;font-weight:900;color:var(--gold);margin-top:4px">🔥 ${streak}</div>
@@ -473,12 +478,17 @@
             <div class="stat-box card-panel" style="padding:14px;text-align:center">
               <div class="faint" style="font-size:11px">WAGER SPOILS</div>
               <div style="font-size:24px;font-weight:900;color:var(--life);margin-top:4px">+${totalWon.toLocaleString()}</div>
-              <div class="faint" style="font-size:10px">Gold from tables</div>
+              <div class="faint" style="font-size:10px">TCG from tables</div>
             </div>
             <div class="stat-box card-panel" style="padding:14px;text-align:center">
-              <div class="faint" style="font-size:11px">VAULT BALANCE</div>
-              <div style="font-size:24px;font-weight:900;color:var(--gold);margin-top:4px">🪙 ${balance.toLocaleString()}</div>
-              <div class="faint" style="font-size:10px">Available chips</div>
+              <div class="faint" style="font-size:11px">$TCG BALANCE</div>
+              <div style="font-size:24px;font-weight:900;color:var(--gold);margin-top:4px">🪙 ${tcgBal.toLocaleString()}</div>
+              <div class="faint" style="font-size:10px">Available wagers</div>
+            </div>
+            <div class="stat-box card-panel" style="padding:14px;text-align:center">
+              <div class="faint" style="font-size:11px">$GG BALANCE</div>
+              <div style="font-size:24px;font-weight:900;color:#c084fc;margin-top:4px">💎 ${ggBal.toLocaleString()}</div>
+              <div class="faint" style="font-size:10px">Guild reserve</div>
             </div>
           </div>
 
@@ -515,7 +525,7 @@
                   <tr style="text-align:left;border-bottom:1px solid var(--line)">
                     <th style="padding:8px">#</th>
                     <th style="padding:8px">Wizard</th>
-                    <th style="padding:8px">🪙 Gold Balance</th>
+                    <th style="padding:8px">🪙 $TCG Balance</th>
                     <th style="padding:8px">Record</th>
                   </tr>
                 </thead>
@@ -529,7 +539,7 @@
                               <b>${escapeHtml(u.displayName || u.username)}</b>
                               ${user && user.id === u.id ? ' <span class="chip gold" style="font-size:9px;padding:1px 6px">YOU</span>' : ""}
                             </td>
-                            <td style="padding:8px;color:var(--gold);font-weight:bold">${(u.balance || 0).toLocaleString()} 🪙</td>
+                            <td style="padding:8px;color:var(--gold);font-weight:bold">🪙 ${(u.tcgBalance ?? u.balance ?? 0).toLocaleString()} $TCG</td>
                             <td style="padding:8px">${u.wins || 0}W / ${u.losses || 0}L</td>
                           </tr>
                         `).join("")
@@ -658,7 +668,7 @@
 
               <div class="row" style="margin-top:20px;gap:10px;flex-wrap:wrap">
                 <button type="submit" class="btn gold pulse" id="btn-portal-reg-submit" style="padding:10px 24px">
-                  ✨ Create Character & Claim 1,000 🪙 Gold
+                  ✨ Create Character & Claim 1,000 🪙 $TCG
                 </button>
                 <button type="button" class="btn ghost" id="btn-switch-to-log">Already have a character? Log In</button>
               </div>

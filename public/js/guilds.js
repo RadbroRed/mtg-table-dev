@@ -93,9 +93,9 @@
               <div style="display:flex;align-items:center;gap:12px">
                 <div style="text-align:right">
                   <div class="faint" style="font-size:12px">Guild Vault</div>
-                  <div style="font-size:18px;font-weight:700;color:var(--gold, #fbbf24)">${(myGuild.vault || 0).toLocaleString()} 🪙</div>
+                  <div style="font-size:18px;font-weight:700;color:var(--gold, #fbbf24)">${(myGuild.vault || 0).toLocaleString()} 🪙 $TCG</div>
                 </div>
-                <button type="button" class="btn gold small btn-donate-guild" data-gid="${myGuild.id}">🪙 Donate Gold</button>
+                <button type="button" class="btn gold small btn-donate-guild" data-gid="${myGuild.id}">🪙 Donate $TCG</button>
               </div>
             </div>
           </div>
@@ -325,7 +325,7 @@
             return;
           }
           if (user && user.balance < leg.entryFee) {
-            toast(`Insufficient balance for ${leg.entryFee} Gold entry fee!`);
+            toast(`Insufficient balance for ${leg.entryFee} $TCG entry fee!`);
             return;
           }
           const deckName = prompt("Enter the deck archetype you will pilot in this league:", "Sylvan Ramp") || "Custom Deck";
@@ -442,13 +442,13 @@
       modal.innerHTML = `
         <div class="sheet">
           <h2>🪙 Donate to ${escapeHtml(guild.name)}</h2>
-          <p class="muted">Pool gold into the vault to increase guild level and unlock exclusive cosmetic auras.</p>
+          <p class="muted">Pool $TCG into the vault to increase guild level and unlock exclusive cosmetic auras.</p>
           <div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:6px;margin:16px 0;font-size:13px">
-            Current Vault: <b>${(guild.vault || 0).toLocaleString()} 🪙 Gold</b> (Level ${guild.level || 1})
+            Current Vault: <b>${(guild.vault || 0).toLocaleString()} 🪙 $TCG</b> (Level ${guild.level || 1})
           </div>
           <form id="donate-form">
             <div class="field">
-              <label>Donation Amount (Gold)</label>
+              <label>Donation Amount ($TCG)</label>
               <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
                 <button type="button" class="btn small ghost btn-amt" data-a="100">100 🪙</button>
                 <button type="button" class="btn small ghost btn-amt" data-a="500">500 🪙</button>
@@ -629,7 +629,7 @@
                 </select>
               </div>
               <div class="field" style="flex:1">
-                <label>Entry Fee (Gold)</label>
+                <label>Entry Fee ($TCG)</label>
                 <input type="number" id="cl-entry" min="0" value="100" />
               </div>
             </div>

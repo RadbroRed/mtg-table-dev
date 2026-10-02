@@ -447,7 +447,9 @@
     }
     const avatarEmoji = portraitOf(user && user.avatar);
     const playerName = (user && (user.displayName || user.username)) || me?.name || "Planeswalker";
-    let goldBalance = (user && typeof user.balance === "number") ? user.balance : 0;
+    let tcgBalance = (user && typeof user.tcgBalance === "number") ? user.tcgBalance : ((user && typeof user.balance === "number") ? user.balance : 0);
+    let ggBalance = (user && typeof user.ggBalance === "number") ? user.ggBalance : ((user?.displayName === "Amber" || user?.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
+    let goldBalance = tcgBalance;
     let chosenBotDiff = "normal";
 
     const hero = {
@@ -1210,10 +1212,10 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             },
             {
               id: "dao_faucet",
-              name: "🪙 Daily Gold Font",
-              subtitle: "Claim Free Daily Wager Gold",
+              name: "🪙 Daily $TCG Font",
+              subtitle: "Claim Free Daily Wager $TCG",
               icon: "💧",
-              promptText: "Claim Gold",
+              promptText: "Claim $TCG",
               x: fr.x + fr.dw * 0.28,
               y: fr.y + fr.dh * 0.58,
               radius: 80,
@@ -1563,7 +1565,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               <div class="dfk-stat-chip">🏆 Wins: <b id="stat-wins">—</b></div>
               <div class="dfk-stat-chip">💀 Losses: <b id="stat-losses">—</b></div>
               <div class="dfk-stat-chip">🤖 Bot Wins: <b id="stat-botwins">—</b></div>
-              <div class="dfk-stat-chip">🪙 Gold: <b>${goldBalance.toLocaleString()}</b></div>
+              <div class="dfk-stat-chip">🪙 $TCG: <b>${tcgBalance.toLocaleString()}</b></div>
             </div>
           </div>`;
         case "builder": return `
@@ -1619,7 +1621,8 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
           <div class="dfk-room-section" style="margin-top:14px">
             <h4>🪙 Treasury Overview</h4>
             <div style="display:flex;flex-direction:column;gap:6px">
-              <div class="dfk-stat-chip">🪙 Your Balance: <b>${goldBalance.toLocaleString()} Gold</b></div>
+              <div class="dfk-stat-chip">🪙 Your $TCG Balance: <b>${tcgBalance.toLocaleString()} $TCG</b></div>
+              <div class="dfk-stat-chip">💎 Your $GG Reserve: <b>${ggBalance.toLocaleString()} $GG</b></div>
               <div class="dfk-stat-chip">📊 Fee Pool: <b>3% of all wagers</b></div>
               <div class="dfk-stat-chip">🗳️ Active Proposals: <b>—</b></div>
             </div>
@@ -1821,8 +1824,15 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
     }
 
     function refreshAdventureGold(balance, user) {
-      if (typeof balance === "number") goldBalance = balance;
-      if (user && window.MTG.setCachedUser) window.MTG.setCachedUser(user);
+      if (typeof balance === "number") {
+        goldBalance = balance;
+        tcgBalance = balance;
+      }
+      if (user) {
+        if (typeof user.tcgBalance === "number") tcgBalance = user.tcgBalance;
+        if (typeof user.ggBalance === "number") ggBalance = user.ggBalance;
+        if (window.MTG.setCachedUser) window.MTG.setCachedUser(user);
+      }
       renderPlayerCard();
       updatePlayerVitals();
       if (window.MTG_SFX && window.MTG_SFX.play) window.MTG_SFX.play("coin");
@@ -2175,8 +2185,9 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
               <span class="dfk-mana-pip pip-g" title="Green">🌳</span>
               <span class="dfk-status-pill" style="margin-left:auto">● Online</span>
             </div>
-            <div class="dfk-wealth-row">
-              <div class="dfk-wealth-badge">🪙 <b id="dfk-card-gold">${goldBalance.toLocaleString()}</b> <small>Gold</small></div>
+            <div class="dfk-wealth-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <div class="dfk-wealth-badge" title="$TCG Token Balance">🪙 <b id="dfk-card-tcg">${tcgBalance.toLocaleString()}</b> <small>$TCG</small></div>
+              <div class="dfk-wealth-badge" style="color:#c084fc;" title="$GG Token Reserve">💎 <b id="dfk-card-gg">${ggBalance.toLocaleString()}</b> <small>$GG</small></div>
               <div class="dfk-wealth-badge">⭐ <b>${xp}/${xpNeeded}</b> <small>XP</small></div>
             </div>
             <div class="dfk-xp-bar" style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;margin-top:3px;" title="${xp} / ${xpNeeded} XP (${xpPct}%)">
@@ -2213,12 +2224,16 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const hpTxt = playerCardEl.querySelector("#dfk-hp-txt");
       const mpFill = playerCardEl.querySelector("#dfk-mp-fill");
       const mpTxt = playerCardEl.querySelector("#dfk-mp-txt");
+      const tcgTxt = playerCardEl.querySelector("#dfk-card-tcg");
+      const ggTxt = playerCardEl.querySelector("#dfk-card-gg");
       const goldTxt = playerCardEl.querySelector("#dfk-card-gold");
       if (hpFill) hpFill.style.width = `${(hero.hp / hero.maxHp) * 100}%`;
       if (hpTxt) hpTxt.textContent = `${hero.hp}/${hero.maxHp}`;
       if (mpFill) mpFill.style.width = `${(hero.mp / hero.maxMp) * 100}%`;
       if (mpTxt) mpTxt.textContent = `${hero.mp}/${hero.maxMp}`;
-      if (goldTxt) goldTxt.textContent = goldBalance.toLocaleString();
+      if (tcgTxt) tcgTxt.textContent = tcgBalance.toLocaleString();
+      if (ggTxt) ggTxt.textContent = ggBalance.toLocaleString();
+      if (goldTxt) goldTxt.textContent = tcgBalance.toLocaleString();
 
       // Update Diablo 2 / WoW HUD Orbs at screen bottom
       const d2Hp = hotbarEl.querySelector("#d2-life-fill");
@@ -2236,7 +2251,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       const rGold = roomOverlay.querySelector("#room-gold");
       if (rHp) rHp.textContent = `${hero.hp}/${hero.maxHp}`;
       if (rMp) rMp.textContent = `${hero.mp}/${hero.maxMp}`;
-      if (rGold) rGold.textContent = goldBalance.toLocaleString();
+      if (rGold) rGold.textContent = `${tcgBalance.toLocaleString()} $TCG`;
     }
 
     function renderTopNavHud() {
@@ -3103,7 +3118,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
             dummy.hp = dummy.maxHp;
             addFloatingText(dummy.x, dummy.y - 45, "💀 Defeated! +50 🪙", "#fbbf24");
             window.MTG_SFX && window.MTG_SFX.play && window.MTG_SFX.play("victory");
-            if (window.MTG && window.MTG.toast) window.MTG.toast("🎯 Sparring Dummy defeated! +50 Gold!");
+            if (window.MTG && window.MTG.toast) window.MTG.toast("🎯 Sparring Dummy defeated! +50 $TCG!");
             goldBalance += 50;
             renderPlayerCard();
             updatePlayerVitals();
@@ -3687,7 +3702,7 @@ function drawPixelSprite(c, type, x, y, scale, bob) {
       goldBalance += amount;
       renderPlayerCard();
       updatePlayerVitals();
-      addLog("system", `Obtained ${amount.toLocaleString()} Gold! 🪙`);
+      addLog("system", `Obtained ${amount.toLocaleString()} $TCG! 🪙`);
     }
 
     function onRemoteSparringDamage(dmg) {

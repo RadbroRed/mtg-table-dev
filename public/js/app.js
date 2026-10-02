@@ -1032,9 +1032,10 @@
     });
     const cur = getCachedUser(second) || { ...me, balance: 0, level: 1, xp: 0 };
     cur.balance = res.balance;
+    cur.tcgBalance = res.balance;
     setCachedUser(cur, second);
     window.MTG_SFX && window.MTG_SFX.play("coin");
-    toast(`🪙 +500 Gold claimed! Total: ${res.balance} Gold! ✨`);
+    toast(`🪙 +500 $TCG claimed! Total: ${res.balance} $TCG! ✨`);
     return res.balance;
   }
 
@@ -1321,6 +1322,8 @@
       : "🔇 Music Off";
 
     const balanceDisplay = (user && typeof user.balance === "number") ? user.balance : 0;
+    const tcgDisplay = (user && typeof user.tcgBalance === "number") ? user.tcgBalance : balanceDisplay;
+    const ggDisplay = (user && typeof user.ggBalance === "number") ? user.ggBalance : ((user?.displayName === "Amber" || user?.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
     const curLevel = user && typeof user.level === "number" ? user.level : 1;
     const curXp = user && typeof user.xp === "number" ? user.xp : 0;
     const curXpNeeded = user && typeof user.xpNeeded === "number" ? user.xpNeeded : (curLevel * 100);
@@ -1386,9 +1389,11 @@
           📜 <span id="quests-btn-label">Quests</span><span class="badge" id="quests-badge" style="display:none">0</span>
         </button>
 
-        <!-- Gold Vault & Wager Hub Button -->
-        <button type="button" class="btn gold small vault-btn rpg-gold-badge" id="vault-btn" title="Gold Vault & Leaderboard">
-          🪙 <span id="user-gold">${balanceDisplay.toLocaleString()}</span><span class="vault-label"> Gold</span>
+        <!-- $TCG & $GG Token Vault Button -->
+        <button type="button" class="btn gold small vault-btn rpg-gold-badge" id="vault-btn" title="Crypto Token Vault & Leaderboard" style="display:inline-flex;align-items:center;gap:6px;">
+          <span>🪙 <span id="user-tcg">${tcgDisplay.toLocaleString()}</span> <small style="font-size:10px;font-weight:700;">$TCG</small></span>
+          <span style="opacity:0.35;">|</span>
+          <span style="color:#e9d5ff;">💎 <span id="user-gg">${ggDisplay.toLocaleString()}</span> <small style="font-size:10px;font-weight:700;">$GG</small></span>
         </button>
 
         <!-- Web3 Crypto Wallet Navigation Pill -->
@@ -1841,7 +1846,7 @@
         <h2 style="margin:2px 0 4px 0">${escapeHtml(p.displayName || p.name || "Planeswalker")}</h2>
         <div class="faint" style="font-size:12px">${p.username ? `@${escapeHtml(p.username)} · ` : ""}${p.isGuest ? "Guest Planeswalker" : "Verified Wizard"}</div>
         <div style="display:flex;justify-content:center;gap:10px;margin:14px 0">
-          <span class="chip gold">🪙 ${(p.balance || 0).toLocaleString()} Gold</span>
+          <span class="chip gold">🪙 ${(p.tcgBalance ?? p.balance ?? 0).toLocaleString()} $TCG</span>
           <span class="chip">🏆 ${p.wins || 0}W - ${p.losses || 0}L</span>
         </div>
         <div class="chip" style="margin-bottom:18px;display:inline-block">
@@ -1941,7 +1946,7 @@
           <b>${escapeHtml(msg.from || "A friend")}</b> has challenged you to a <b>${escapeHtml(msg.format || "duel")}</b> match!
         </p>
         <div class="chip gold" style="font-size:14px;padding:6px 14px;margin-bottom:18px">
-          🪙 Wager: <b>${(msg.wager || 0).toLocaleString()} Gold</b>
+          🪙 Wager: <b>${(msg.wager || 0).toLocaleString()} $TCG</b>
         </div>
         <div style="display:flex;gap:10px;justify-content:center">
           <button type="button" class="btn gold" id="accept-challenge-btn">Accept & Sit at Table</button>
@@ -1990,7 +1995,7 @@
                       <b>${escapeHtml(f.displayName || f.username)}</b>
                       <div class="faint" style="font-size:11px">
                         ${f.isOnline ? `<span style="color:var(--life)">🟢 ${escapeHtml(f.status)}</span>` : "⚪ Offline"}
-                        · 🪙 ${(f.balance || 0).toLocaleString()} Gold
+                        · 🪙 ${(f.tcgBalance ?? f.balance ?? 0).toLocaleString()} $TCG
                       </div>
                     </div>
                   </div>
@@ -2456,7 +2461,7 @@
             <h2>🔑 Wizard Login</h2>
             <span class="chip gold">[ NET ART AUTH ]</span>
           </div>
-          <p class="muted">Log in to track your persistent Gold balance, match record, custom decks, and leaderboard rank.</p>
+          <p class="muted">Log in to track your persistent $TCG & $GG balances, match record, custom decks, and leaderboard rank.</p>
           <div id="auth-err" class="auth-err-banner" style="display:none;margin-top:12px"></div>
           <form id="auth-form" class="auth-form" style="margin-top:16px">
             <div class="field">
@@ -2534,18 +2539,22 @@
                   <button type="button" class="btn small ghost" id="btn-copy-wallet" data-addr="${escapeHtml(cur.walletAddress)}">📋 Copy Address</button>
                 </div>
 
-                <div class="web3-vault-summary" style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-top:16px">
+                <div class="web3-vault-summary" style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;margin-top:16px">
                   <div class="stat-box" style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;text-align:center">
                     <div class="faint" style="font-size:10px">NETWORK</div>
-                    <div style="font-weight:700;font-size:13px;margin-top:2px;color:var(--life)">🟢 Sepolia (11155111)</div>
+                    <div style="font-weight:700;font-size:12px;margin-top:2px;color:var(--life)">🟢 Sepolia</div>
                   </div>
                   <div class="stat-box" style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;text-align:center">
-                    <div class="faint" style="font-size:10px">SEPOLIA BALANCE</div>
-                    <div style="font-weight:700;font-size:13px;margin-top:2px;color:var(--gold)">${cur.sepoliaBalance ? `💎 ${cur.sepoliaBalance} SEP` : '🟢 On-Chain'}</div>
+                    <div class="faint" style="font-size:10px">SEPOLIA ETH</div>
+                    <div style="font-weight:700;font-size:12px;margin-top:2px;color:var(--gold)" id="wallet-eth-bal">⛽ ${cur.sepoliaBalance ? `${cur.sepoliaBalance} ETH` : '0.05 ETH'}</div>
                   </div>
                   <div class="stat-box" style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;text-align:center">
-                    <div class="faint" style="font-size:10px">HEARTH GOLD</div>
-                    <div style="font-weight:700;font-size:13px;margin-top:2px;color:var(--gold)">🪙 ${(cur.balance || 0).toLocaleString()}</div>
+                    <div class="faint" style="font-size:10px">$TCG TOKEN</div>
+                    <div style="font-weight:700;font-size:12px;margin-top:2px;color:var(--gold)" id="wallet-tcg-bal">🪙 ${(cur.tcgBalance ?? cur.balance ?? 0).toLocaleString()} <span style="font-size:10px;opacity:0.8;">TCG</span></div>
+                  </div>
+                  <div class="stat-box" style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;text-align:center">
+                    <div class="faint" style="font-size:10px">$GG TOKEN</div>
+                    <div style="font-weight:700;font-size:12px;margin-top:2px;color:#c084fc" id="wallet-gg-bal">💎 ${(cur.ggBalance ?? 0).toLocaleString()} <span style="font-size:10px;opacity:0.8;">GG</span></div>
                   </div>
                 </div>
 
@@ -2610,7 +2619,7 @@
                 ${cur.isAdmin ? '<span class="chip gold" style="font-size:10px">👑 Admin</span>' : '<span class="chip ghost" style="font-size:10px">Wizard</span>'}
                 ${cur.walletAddress ? '<span class="chip gold" style="font-size:10px">🦊 Web3</span>' : ''}
               </div>
-              <div class="faint" style="font-size:12px;margin-top:2px">${rankTitle} · <b>${(cur.balance || 0).toLocaleString()} 🪙 Gold</b></div>
+              <div class="faint" style="font-size:12px;margin-top:2px">${rankTitle} · 🪙 <b>${(cur.tcgBalance ?? cur.balance ?? 0).toLocaleString()} $TCG</b> · 💎 <b>${(cur.ggBalance ?? 0).toLocaleString()} $GG</b></div>
               <div class="faint" style="font-size:12px;margin-top:4px;font-style:italic">${escapeHtml(cur.bio || "Planeswalker traversing the Multiverse by the hearth.")}</div>
               ${
                 cur.walletAddress
@@ -2648,7 +2657,7 @@
 
           <!-- Cute Stats Grid -->
           <div class="section-title" style="margin-top:18px">🏆 Wizard Achievements & Stats</div>
-          <div class="profile-stats-grid" style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;margin-top:8px">
+          <div class="profile-stats-grid" style="display:grid;grid-template-columns:repeat(5, 1fr);gap:8px;margin-top:8px">
             <div class="stat-box" style="padding:10px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
               <div style="font-size:11px" class="faint">Win Streak</div>
               <div style="font-size:18px;font-weight:900;color:var(--gold);margin-top:2px">🔥 ${streak}</div>
@@ -2660,14 +2669,19 @@
               <div class="faint" style="font-size:10px">${winrate}% Winrate</div>
             </div>
             <div class="stat-box" style="padding:10px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
-              <div style="font-size:11px" class="faint">Gold Won</div>
+              <div style="font-size:11px" class="faint">Spoils Won</div>
               <div style="font-size:18px;font-weight:900;color:var(--life);margin-top:2px">+${totalWon.toLocaleString()}</div>
-              <div class="faint" style="font-size:10px">Wager Spoils</div>
+              <div class="faint" style="font-size:10px">Wager TCG</div>
             </div>
             <div class="stat-box" style="padding:10px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
-              <div style="font-size:11px" class="faint">Vault Balance</div>
-              <div style="font-size:18px;font-weight:900;color:var(--gold);margin-top:2px">🪙 ${(cur.balance || 0).toLocaleString()}</div>
-              <div class="faint" style="font-size:10px">Available</div>
+              <div style="font-size:11px" class="faint">$TCG Balance</div>
+              <div style="font-size:18px;font-weight:900;color:var(--gold);margin-top:2px">🪙 ${(cur.tcgBalance ?? cur.balance ?? 0).toLocaleString()}</div>
+              <div class="faint" style="font-size:10px">Wager Chips</div>
+            </div>
+            <div class="stat-box" style="padding:10px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
+              <div style="font-size:11px" class="faint">$GG Balance</div>
+              <div style="font-size:18px;font-weight:900;color:#c084fc;margin-top:2px">💎 ${(cur.ggBalance ?? 0).toLocaleString()}</div>
+              <div class="faint" style="font-size:10px">Vault Reserve</div>
             </div>
           </div>
 
@@ -2701,14 +2715,21 @@
         const cur = user || getCachedUser(second) || { balance: 0, level: 1, xp: 0, wins: 0, losses: 0, displayName: "Guest Wizard" };
         const totalGames = (cur.wins || 0) + (cur.losses || 0);
         const winrate = totalGames ? Math.round(((cur.wins || 0) / totalGames) * 100) : 0;
+        const curTcg = cur.tcgBalance ?? cur.balance ?? 0;
+        const curGg = cur.ggBalance ?? ((cur.displayName === "Amber" || cur.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
         content = `
-          <h2>🪙 Gold Vault & Treasury</h2>
+          <h2>🪙 $TCG & $GG Token Vault</h2>
           <div class="vault-card" style="margin-top:14px">
-            <div class="vault-balance">
-              <span class="coin-big" style="font-size:2.8rem">🪙</span>
-              <div>
-                <div class="gold-num" style="font-size:1.8rem;font-weight:bold;color:var(--gold)">${(cur.balance || 0).toLocaleString()} 🪙</div>
-                <div class="muted">Available Gold for Wagers</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:8px;padding:14px">
+                <div style="font-size:11px;color:#fbbf24;font-weight:700">🪙 $TCG STAKES BALANCE</div>
+                <div style="font-size:1.6rem;font-weight:bold;color:var(--gold);margin-top:4px">${curTcg.toLocaleString()} <small style="font-size:12px;opacity:0.8">$TCG</small></div>
+                <div class="muted" style="font-size:11px;margin-top:4px">Available for match wagering & trading</div>
+              </div>
+              <div style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.25);border-radius:8px;padding:14px">
+                <div style="font-size:11px;color:#c084fc;font-weight:700">💎 $GG GUILD RESERVE</div>
+                <div style="font-size:1.6rem;font-weight:bold;color:#c084fc;margin-top:4px">${curGg.toLocaleString()} <small style="font-size:12px;opacity:0.8">$GG</small></div>
+                <div class="muted" style="font-size:11px;margin-top:4px">Vault Reserve Supply: 1T $GG</div>
               </div>
             </div>
             <div class="vault-stats" style="display:flex;gap:14px;margin-top:14px">
@@ -2726,7 +2747,7 @@
       } else if (tab === "leaderboard") {
         content = `
           <h2>🏆 Wizards Leaderboard</h2>
-          <p class="muted">The top planeswalkers across the multiverse ranked by Gold balance and victories.</p>
+          <p class="muted">The top planeswalkers across the multiverse ranked by $TCG balance and victories.</p>
           <div id="lb-content" style="margin-top:14px"><div class="empty">Loading leaderboard…</div></div>
         `;
       }
@@ -2736,7 +2757,7 @@
           ${user ? `<button type="button" class="btn small ${tab === "profile" ? "gold" : "ghost"} auth-tab" data-tab="profile">🧙 Profile & Avatar</button>` : ""}
           <button type="button" class="btn small ${tab === "wallet" ? "gold" : "ghost"} auth-tab" data-tab="wallet">👛 Web3 Wallet</button>
           ${user ? `<button type="button" class="btn small ${tab === "decks" ? "gold" : "ghost"} auth-tab" data-tab="decks">📖 My Decks</button>` : ""}
-          <button type="button" class="btn small ${tab === "vault" ? "gold" : "ghost"} auth-tab" data-tab="vault">🪙 Gold Vault</button>
+          <button type="button" class="btn small ${tab === "vault" ? "gold" : "ghost"} auth-tab" data-tab="vault">🪙 Token Vault</button>
           <button type="button" class="btn small ${tab === "leaderboard" ? "gold" : "ghost"} auth-tab" data-tab="leaderboard">🏆 Leaderboard</button>
           ${!user ? `<button type="button" class="btn small ${tab === "login" ? "gold" : "ghost"} auth-tab" data-tab="login">🔑 Log In</button>` : ""}
           ${!user ? `<button type="button" class="btn small ${tab === "register" ? "gold" : "ghost"} auth-tab" data-tab="register">✨ Register</button>` : ""}
@@ -3046,7 +3067,7 @@
                     <tr style="text-align:left;border-bottom:1px solid var(--line)">
                       <th style="padding:8px">#</th>
                       <th style="padding:8px">Wizard</th>
-                      <th style="padding:8px">🪙 Gold</th>
+                      <th style="padding:8px">🪙 $TCG</th>
                       <th style="padding:8px">Record</th>
                     </tr>
                   </thead>
@@ -3055,7 +3076,7 @@
                       <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:${user && user.id === u.id ? "rgba(215,180,92,0.12)" : "transparent"}">
                         <td style="padding:8px">${i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</td>
                         <td style="padding:8px"><b>${escapeHtml(u.displayName || u.username)}</b>${user && user.id === u.id ? " <small style='color:var(--gold)'>(you)</small>" : ""}</td>
-                        <td style="padding:8px;color:var(--gold);font-weight:bold">${(u.balance || 0).toLocaleString()} 🪙</td>
+                        <td style="padding:8px;color:var(--gold);font-weight:bold">🪙 ${(u.tcgBalance ?? u.balance ?? 0).toLocaleString()} $TCG</td>
                         <td style="padding:8px">${u.wins || 0}W / ${u.losses || 0}L</td>
                       </tr>
                     `).join("")}

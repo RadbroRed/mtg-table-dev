@@ -1241,7 +1241,7 @@
             <div class="victory-reason">${escapeHtml(state.payout?.reason || "The match has reached its conclusion.")}</div>
             ${potAmount > 0 ? `
               <div class="payout-pill ${won ? "payout-win" : ""}">
-                ${won ? `🪙 <b>+${potAmount.toLocaleString()} Gold</b> won and deposited into your vault!` : `💰 Table Pot of <b>${potAmount.toLocaleString()} 🪙 Gold</b> awarded to ${escapeHtml(winnerName || "winner")}`}
+                ${won ? `🪙 <b>+${potAmount.toLocaleString()} $TCG</b> won and deposited into your vault!` : `💰 Table Pot of <b>${potAmount.toLocaleString()} 🪙 $TCG</b> awarded to ${escapeHtml(winnerName || "winner")}`}
               </div>
             ` : ""}
           </div>
@@ -1303,7 +1303,7 @@
       let startBtnLabel = "Start game";
       if (!bothIn) startBtnLabel = "Waiting for player 2";
       else if (!bothDecks) startBtnLabel = mine?.deckId ? "Waiting for the other deck" : "Pick a deck to start";
-      else if (!p0Afford || !p1Afford) startBtnLabel = "Not enough Gold for this wager";
+      else if (!p0Afford || !p1Afford) startBtnLabel = "Not enough $TCG for this wager";
 
       return `<div class="pregame">
         <h2>${title}</h2>
@@ -1317,20 +1317,20 @@
               <div>
                 <div class="stakes-label">MATCH STAKES & POT</div>
                 <div class="stakes-pot">
-                  ${wager > 0 ? `🏆 Match Pot: <b>${(wager * 2).toLocaleString()} 🪙 Gold</b> (${wager.toLocaleString()} 🪙 from each player)` : "🌱 Casual Match · No Gold Wagered"}
+                  ${wager > 0 ? `🏆 Match Pot: <b>${(wager * 2).toLocaleString()} $TCG</b> (${wager.toLocaleString()} $TCG from each player)` : "🌱 Casual Match · No $TCG Wagered"}
                 </div>
               </div>
             </div>
           </div>
 
           <div class="wager-selector-row">
-            <span class="wager-label">Set Wager:</span>
+            <span class="wager-label">Set Wager ($TCG):</span>
             <div class="wager-chip-group">
               <button type="button" class="btn small wager-btn ${wager === 0 ? "gold active" : "ghost"}" data-wager="0">Casual (0)</button>
-              <button type="button" class="btn small wager-btn ${wager === 50 ? "gold active" : "ghost"}" data-wager="50">50 🪙</button>
-              <button type="button" class="btn small wager-btn ${wager === 100 ? "gold active" : "ghost"}" data-wager="100">100 🪙</button>
-              <button type="button" class="btn small wager-btn ${wager === 250 ? "gold active" : "ghost"}" data-wager="250">250 🪙</button>
-              <button type="button" class="btn small wager-btn ${wager === 500 ? "gold active" : "ghost"}" data-wager="500">500 🪙</button>
+              <button type="button" class="btn small wager-btn ${wager === 50 ? "gold active" : "ghost"}" data-wager="50">50 $TCG</button>
+              <button type="button" class="btn small wager-btn ${wager === 100 ? "gold active" : "ghost"}" data-wager="100">100 $TCG</button>
+              <button type="button" class="btn small wager-btn ${wager === 250 ? "gold active" : "ghost"}" data-wager="250">250 $TCG</button>
+              <button type="button" class="btn small wager-btn ${wager === 500 ? "gold active" : "ghost"}" data-wager="500">500 $TCG</button>
             </div>
           </div>
 
@@ -1340,12 +1340,12 @@
                 if (!s.playerId) {
                   return `<div class="balance-pill empty">Seat ${idx + 1}: <i>Waiting for opponent…</i></div>`;
                 }
-                const canAfford = (s.balance || 0) >= wager || s.isBot;
+                const canAfford = (s.tcgBalance ?? s.balance ?? 0) >= wager || s.isBot;
                 return `<div class="balance-pill ${canAfford ? "afford" : "broke"}">
                   <span class="seat-badge">Seat ${idx + 1}${s.you ? " (You)" : ""}</span>
                   <span class="seat-name"><b>${escapeHtml(s.name || "")}</b></span>
-                  <span class="seat-gold">🪙 ${(s.balance || 0).toLocaleString()} Gold</span>
-                  ${wager > 0 ? (canAfford ? `<span class="stake-tag ok">✓ Ready</span>` : `<span class="stake-tag need">⚠️ Needs ${(wager - (s.balance || 0)).toLocaleString()} more</span>`) : ""}
+                  <span class="seat-gold">🪙 ${(s.tcgBalance ?? s.balance ?? 0).toLocaleString()} $TCG</span>
+                  ${wager > 0 ? (canAfford ? `<span class="stake-tag ok">✓ Ready</span>` : `<span class="stake-tag need">⚠️ Needs ${(wager - (s.tcgBalance ?? s.balance ?? 0)).toLocaleString()} more</span>`) : ""}
                 </div>`;
               })
               .join("")}

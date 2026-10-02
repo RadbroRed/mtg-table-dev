@@ -607,8 +607,8 @@
           ch.opened = true;
           window.MTG_SFX && window.MTG_SFX.play("bell");
           spawnParticles(ch.x, ch.y, 28, "#fbbf24", 4, -0.05);
-          addFloatingText(ch.x, ch.y - 20, `+${ch.gold} 🪙 Gold Loot!`, "#fbbf24");
-          toast(`🎁 Opened ${ch.label}! Claimed +${ch.gold} Gold spoils! ✨`);
+          addFloatingText(ch.x, ch.y - 20, `+${ch.gold} 🪙 $TCG Loot!`, "#fbbf24");
+          toast(`🎁 Opened ${ch.label}! Claimed +${ch.gold} $TCG spoils! ✨`);
         } else if (nearest.type === "portal") {
           const p = nearest.data;
           window.MTG_SFX && window.MTG_SFX.play("summon");

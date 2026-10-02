@@ -103,8 +103,8 @@
           <div class="dao-stat-box">
             <div class="dao-stat-icon">🪙</div>
             <div class="dao-stat-info">
-              <div class="dao-stat-label">Gold in Circulation</div>
-              <div class="dao-stat-val"><b>${(s.totalGold || 0).toLocaleString()}</b> 🪙 Gold</div>
+              <div class="dao-stat-label">$TCG in Circulation</div>
+              <div class="dao-stat-val"><b>${(s.totalGold || 0).toLocaleString()}</b> 🪙 $TCG</div>
             </div>
           </div>
           <div class="dao-stat-box">
@@ -157,7 +157,7 @@
               <tr>
                 <th>Username</th>
                 <th>Display Name</th>
-                <th>Gold Balance</th>
+                <th>$TCG Balance</th>
                 <th>Record (W / L)</th>
                 <th>Streak</th>
                 <th>Role</th>
@@ -264,7 +264,7 @@
             headers: { "x-admin-key": adminKey },
             body: { amount, description },
           });
-          toast(`DAO Treasury adjusted by ${amount > 0 ? "+" : ""}${amount} Gold! ✨`);
+          toast(`DAO Treasury adjusted by ${amount > 0 ? "+" : ""}${amount} $TCG! ✨`);
           overview = await loadData();
           renderAdmin();
         } catch (err) {
@@ -315,7 +315,7 @@
 
     async function promptGoldAdjustment(uid, username, isGrant) {
       const defAmt = isGrant ? 500 : -250;
-      const raw = prompt(`${isGrant ? "Grant" : "Deduct"} Gold for ${username}:`, defAmt);
+      const raw = prompt(`${isGrant ? "Grant" : "Deduct"} $TCG for ${username}:`, defAmt);
       if (!raw) return;
       const amount = parseInt(raw, 10);
       if (isNaN(amount) || amount === 0) return;
@@ -325,7 +325,7 @@
           headers: { "x-admin-key": adminKey },
           body: { targetUserId: uid, amount, reason: `Admin ${isGrant ? "grant" : "deduction"}` },
         });
-        toast(`${amount > 0 ? "+" : ""}${amount} Gold updated for ${username}! New balance: ${res.user.balance.toLocaleString()} 🪙`);
+        toast(`${amount > 0 ? "+" : ""}${amount} $TCG updated for ${username}! New balance: ${(res.user.tcgBalance ?? res.user.balance).toLocaleString()} 🪙`);
         overview = await loadData();
         renderAdmin();
       } catch (err) {

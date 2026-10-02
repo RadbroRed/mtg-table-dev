@@ -305,12 +305,12 @@
       num.textContent = `${dummyHp} / ${dummyMax}`;
       if (dummyHp <= 0) {
         window.MTG_SFX && window.MTG_SFX.play('victory');
-        addLog('🏆 <b>Dummy defeated!</b> +50 Gold & +100 XP gained!', '#fbbf24');
+        addLog('🏆 <b>Dummy defeated!</b> +50 $TCG & +100 XP gained!', '#fbbf24');
         if (window.MTG_RPG?.addGold) {
           window.MTG_RPG.addGold(50);
         }
         if (window.MTG?.toast) {
-          window.MTG.toast('🎯 Sparring Dummy defeated! +50 Gold!');
+          window.MTG.toast('🎯 Sparring Dummy defeated! +50 $TCG!');
         }
         dummyHp = dummyMax;
         setTimeout(() => {

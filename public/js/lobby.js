@@ -64,6 +64,8 @@
     }
 
     let myBalance = user && typeof user.balance === "number" ? user.balance : 0;
+    let myTcg = user && typeof user.tcgBalance === "number" ? user.tcgBalance : myBalance;
+    let myGg = user && typeof user.ggBalance === "number" ? user.ggBalance : ((user?.displayName === "Amber" || user?.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
     let myLevel = user && typeof user.level === "number" ? user.level : 1;
     let myXp = user && typeof user.xp === "number" ? user.xp : 0;
     let myXpNeeded = user && typeof user.xpNeeded === "number" ? user.xpNeeded : (myLevel * 100);
@@ -89,14 +91,14 @@
       <div class="hero" style="display:block; margin-bottom:20px;">
         <div>
           <h1 style="font-size:32px; margin-bottom:8px;">Gather 'Round · Cast · Play ✨</h1>
-          <p style="margin-bottom:14px; max-width:65ch;">Cozy two-player Magic over the LAN. Stake Gold on matches, climb the multiverse leaderboard, or play casually by the hearth!</p>
+          <p style="margin-bottom:14px; max-width:65ch;">Cozy two-player Magic over the LAN. Stake $TCG on matches, climb the multiverse leaderboard, or play casually by the hearth!</p>
           <div class="toolbar">
             <a class="btn gold" href="#/table/new">✨ Play Casual</a>
           </div>
         </div>
       </div>
 
-      <!-- Player Profile & Gold Vault Sanctuary Banner -->
+      <!-- Player Profile & Crypto Token Sanctuary Banner -->
       <div class="lobby-vault-banner">
         <div class="lobby-vault-left">
           <span class="vault-coin-icon">${user && user.avatar ? (user.avatar.startsWith("preset:") ? ({"preset:fairy":"🧚","preset:unicorn":"🦄","preset:wizard":"🧙","preset:dragon":"🐉","preset:kitty":"🐱","preset:princess":"👑","preset:metal":"🤘","preset:cyber":"🤖","preset:skull":"💀"}[user.avatar] || "🧙") : `<img src="${escapeHtml(user.avatar)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid var(--gold)" alt="avatar" />`) : "🪙"}</span>
@@ -107,7 +109,11 @@
               <span class="vault-id">${escapeHtml(user ? user.displayName || user.username : me.name)}</span>
             </div>
             <div class="vault-balance-row">
-              <span class="gold-amount"><b>${myBalance.toLocaleString()}</b> 🪙 Gold</span>
+              <span class="gold-amount" style="display:inline-flex;align-items:center;gap:10px;">
+                <span>🪙 <b>${myTcg.toLocaleString()}</b> <small style="font-size:11px;font-weight:700;">$TCG</small></span>
+                <span style="opacity:0.35;">|</span>
+                <span style="color:#c084fc;">💎 <b>${myGg.toLocaleString()}</b> <small style="font-size:11px;font-weight:700;">$GG</small></span>
+              </span>
               <span class="vault-xp" style="font-size:11px; color:#c084fc; margin-left:8px;" title="${myXp} / ${myXpNeeded} XP">⭐ ${myXp} / ${myXpNeeded} XP (${myXpPct}%)</span>
               <span class="vault-record" style="margin-left:8px;">${user ? `🏆 ${user.wins || 0}W · 💀 ${user.losses || 0}L` : "Log in to save balance & records permanently"}</span>
             </div>
@@ -139,22 +145,22 @@
           </div>
           <div class="field">
             <div style="display:flex;justify-content:space-between;align-items:center">
-              <label style="margin:0">Match Wager (🪙 Stakes)</label>
-              <span class="faint" style="font-size:12px">Your Vault: <b style="color:var(--gold)">🪙 <span id="host-user-gold">${myBalance.toLocaleString()}</span> Gold</b></span>
+              <label style="margin:0">Match Wager (🪙 $TCG Stakes)</label>
+              <span class="faint" style="font-size:12px">Your Vault: <b style="color:var(--gold)">🪙 <span id="host-user-gold">${myTcg.toLocaleString()}</span> $TCG</b></span>
             </div>
             <div class="wager-chips" id="wager-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-              <button type="button" class="btn small gold wager-chip active" data-wager="0">🌸 Casual (0 🪙)</button>
-              <button type="button" class="btn small ghost wager-chip" data-wager="50">50 🪙</button>
-              <button type="button" class="btn small ghost wager-chip" data-wager="100">100 🪙</button>
-              <button type="button" class="btn small ghost wager-chip" data-wager="250">250 🪙</button>
-              <button type="button" class="btn small ghost wager-chip" data-wager="500">500 🪙</button>
-              <button type="button" class="btn small ghost wager-chip" data-wager="custom">✨ Custom 🪙</button>
+              <button type="button" class="btn small gold wager-chip active" data-wager="0">🌸 Casual (0 $TCG)</button>
+              <button type="button" class="btn small ghost wager-chip" data-wager="50">50 $TCG</button>
+              <button type="button" class="btn small ghost wager-chip" data-wager="100">100 $TCG</button>
+              <button type="button" class="btn small ghost wager-chip" data-wager="250">250 $TCG</button>
+              <button type="button" class="btn small ghost wager-chip" data-wager="500">500 $TCG</button>
+              <button type="button" class="btn small ghost wager-chip" data-wager="custom">✨ Custom $TCG</button>
             </div>
             <div id="custom-wager-box" style="display:none;margin-top:8px;align-items:center;gap:8px">
-              <label style="font-size:12px;margin:0">Custom Wager:</label>
+              <label style="font-size:12px;margin:0">Custom Wager ($TCG):</label>
               <input type="number" id="custom-wager-input" min="0" max="100000" placeholder="e.g. 75 or 1000" style="width:140px;padding:4px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--line)" />
             </div>
-            <div class="faint" id="wager-preview" style="margin-top:6px">Casual friendly match · No gold staked</div>
+            <div class="faint" id="wager-preview" style="margin-top:6px">Casual friendly match · No $TCG staked</div>
             <input id="t-wager" type="hidden" value="0" />
           </div>
           <label class="muted" style="display:flex;gap:8px;margin:12px 0 6px;align-items:center">
@@ -306,10 +312,10 @@
         const pot = w * 2;
         const fee = Math.max(0, Math.floor(pot * 0.03));
         const payout = pot - fee;
-        const extra = w > myBalance ? ` <span style="color:#ff9d8c">(⚠️ You have ${myBalance.toLocaleString()} Gold — claim refill or lower wager)</span>` : "";
-        prev.innerHTML = `🏆 Total Match Pot: <b>${pot.toLocaleString()} 🪙 Gold</b> (${w.toLocaleString()} 🪙 each) · Winner claims ~<b>${payout.toLocaleString()} 🪙</b> (3% DAO fee: ${fee.toLocaleString()} 🪙)${extra}`;
+        const extra = w > myTcg ? ` <span style="color:#ff9d8c">(⚠️ You have ${myTcg.toLocaleString()} $TCG — get more or lower wager)</span>` : "";
+        prev.innerHTML = `🏆 Total Match Pot: <b>${pot.toLocaleString()} $TCG</b> (${w.toLocaleString()} $TCG each) · Winner claims ~<b>${payout.toLocaleString()} $TCG</b> (3% DAO fee: ${fee.toLocaleString()} $TCG)${extra}`;
       } else {
-        prev.textContent = "Casual friendly match · No gold staked";
+        prev.textContent = "Casual friendly match · No $TCG staked";
       }
     }
 

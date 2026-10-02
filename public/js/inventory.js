@@ -129,6 +129,8 @@
       const walletChain = user?.walletChain || (walletAddr.startsWith("0x") ? "ethereum" : "solana");
       const walletIcon = hasWallet ? (walletChain === "solana" ? "👻" : "🦊") : "👛";
       const goldBal = typeof user?.balance === "number" ? user.balance : 0;
+      const tcgBal = typeof user?.tcgBalance === "number" ? user.tcgBalance : goldBal;
+      const ggBal = typeof user?.ggBalance === "number" ? user.ggBalance : ((user?.displayName === "Amber" || user?.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
       const chainLabel = walletChain === "solana" ? "Phantom Solana" : "EVM Connected";
       const netChip = walletChain === "solana" ? "● Solana Mainnet" : "● Sepolia Testnet";
 
@@ -138,7 +140,7 @@
           <button type="button" id="inv-close-btn" title="Close">✕</button>
           <div class="d2-inv-title">INVENTORY</div>
           <div class="d2-inv-body">
-            ${renderPaperDoll(user, me, myDecks, equippedDeck, hasWallet, walletIcon, goldBal, portrait)}
+            ${renderPaperDoll(user, me, myDecks, equippedDeck, hasWallet, walletIcon, tcgBal, portrait)}
             <section class="d2-pack">
               <div class="d2-tabs-bar">
                 <button type="button" class="d2-tab-btn ${activeTab === "decks" ? "active" : ""}" id="inv-tab-decks">Decks</button>
@@ -149,10 +151,10 @@
               <div class="inventory-body">
                 ${renderTabContent(user, me, myDecks, equippedDeck)}
               </div>
-              <div class="d2-goldbar">
-                <span class="d2-gold-coin" aria-hidden="true"></span>
-                <b>${goldBal.toLocaleString()}</b>
-                <span style="opacity:.7">Gold</span>
+              <div class="d2-goldbar" style="display:flex;align-items:center;gap:8px;">
+                <span>🪙 <b>${tcgBal.toLocaleString()}</b> <small style="font-size:11px;">$TCG</small></span>
+                <span style="opacity:0.35;">|</span>
+                <span style="color:#c084fc;">💎 <b>${ggBal.toLocaleString()}</b> <small style="font-size:11px;">$GG</small></span>
                 ${hasWallet ? `<span style="margin-left:auto;font-size:11px">${escapeHtml(walletAddr.slice(0, 8))}… ${escapeHtml(netChip)}</span>` : ""}
               </div>
               <div class="d2-inv-tools">
@@ -290,13 +292,14 @@
     // D2's paper doll: helm, amulet, then the three-column weapon/armour/shield
     // row, gloves and the two ring slots, and belt over boots. Laid out on the
     // same 3x5 grid the original uses so the silhouette reads like D2's.
-    function renderPaperDoll(user, me, myDecks, equippedDeck, hasWallet, walletIcon, goldBal, portrait) {
+    function renderPaperDoll(user, me, myDecks, equippedDeck, hasWallet, walletIcon, tcgBal, portrait) {
       const heroName = (user && (user.displayName || user.username)) || me.name || "Hero";
       const deckName = equippedDeck ? equippedDeck.name : "Empty";
       const fmt = equippedDeck?.format || "—";
       const wins = user ? (user.wins || 0) : 0;
       const losses = user ? (user.losses || 0) : 0;
       const level = user ? (user.level || 1) : 1;
+      const safeTcg = typeof tcgBal === "number" ? tcgBal : 0;
 
       // Filled slots keep D2's item-name colour: gold for the equipped deck,
       // blue for a rarity tier, plain cream for base stats.
@@ -319,7 +322,7 @@
           ${slot("d2-slot-glove", { size: "d2-slot-mid", tip: hasWallet ? `Wallet linked — ${walletIcon}` : "No wallet linked", icon: hasWallet ? walletIcon : "👛" })}
           ${slot("d2-slot-ring", { size: "d2-slot-small", tip: `Saved Decks — ${myDecks.length} in pack`, icon: "🎴", name: String(myDecks.length), tier: "tier-rare" })}
           ${slot("d2-slot-ring2", { size: "d2-slot-small", tip: `Record — ${wins}W ${losses}L`, icon: "⚔️", name: `${wins}-${losses}`, tier: "tier-rare" })}
-          ${slot("d2-slot-belt", { size: "d2-slot-wide", tip: `Gold — ${goldBal.toLocaleString()}`, icon: "🪙", name: goldBal.toLocaleString(), tier: "tier-unique" })}
+          ${slot("d2-slot-belt", { size: "d2-slot-wide", tip: `$TCG Stakes — ${safeTcg.toLocaleString()} $TCG`, icon: "🪙", name: `${safeTcg > 9999 ? `${Math.floor(safeTcg / 1000)}k` : safeTcg} $TCG`, tier: "tier-unique" })}
           ${slot("d2-slot-boots", { size: "d2-slot-mid", tip: hasWallet ? "Network — connected" : "Network — none", icon: hasWallet ? "⛓" : "—" })}
           ${slot("d2-slot-level", { size: "d2-slot-wide", tip: `Level — ${level}`, icon: "⭐", name: `Lv. ${level}`, tier: "tier-rare" })}
         </aside>`;
@@ -348,14 +351,15 @@
 
     // The belt holds the handful of things you reach for constantly, kept on
     // their own row the way D2 keeps potions off the main grid.
-    function renderBelt(user, myDecks, equippedDeck, goldBal) {
+    function renderBelt(user, myDecks, equippedDeck, tcgBal) {
       const hasWallet = !!(user && user.walletAddress);
+      const safeTcg = typeof tcgBal === "number" ? tcgBal : 0;
       return `
         <div class="d2-belt" aria-label="Belt">
           <span class="d2-belt-label">BELT</span>
           <div class="d2-belt-slot ${equippedDeck ? "hot" : ""}" title="${equippedDeck ? `Equipped deck: ${escapeHtml(equippedDeck.name)}` : "No deck equipped"}">🎴<small>${escapeHtml((equippedDeck && equippedDeck.format) || "—")}</small></div>
           <div class="d2-belt-slot" title="Saved decks in your pack">🗂️<small>${myDecks.length}</small></div>
-          <div class="d2-belt-slot" title="Gold on hand">🪙<small>${goldBal > 9999 ? `${Math.floor(goldBal / 1000)}k` : goldBal}</small></div>
+          <div class="d2-belt-slot" title="$TCG Stakes balance">🪙<small>${safeTcg > 9999 ? `${Math.floor(safeTcg / 1000)}k` : safeTcg}</small></div>
           <div class="d2-belt-slot" title="Wins / losses">⚔️<small>${user ? `${user.wins || 0}-${user.losses || 0}` : "0-0"}</small></div>
           <div class="d2-belt-slot" title="Planeswalker level">⭐<small>Lv.${user ? user.level || 1 : 1}</small></div>
           <div class="d2-belt-slot" title="${hasWallet ? "Wallet linked" : "No wallet linked"}">${hasWallet ? (user.walletChain === "solana" ? "👻" : "🦊") : "👛"}<small>${hasWallet ? "linked" : "none"}</small></div>
@@ -363,7 +367,7 @@
     }
 
     function renderDecksTab(user, me, myDecks, equippedDeck) {
-      const goldBal = typeof user?.balance === "number" ? user.balance : 0;
+      const tcgBal = typeof user?.tcgBalance === "number" ? user.tcgBalance : (typeof user?.balance === "number" ? user.balance : 0);
       // The pack holds only your own decks. Default decks are not listed here
       // at all — they live in the deck builder, and forking one there is what
       // puts it in your pack.
@@ -477,6 +481,9 @@
 
     function renderWalletTab(user) {
       const hasWallet = !!(user && user.walletAddress);
+      const tcgBal = typeof user?.tcgBalance === "number" ? user.tcgBalance : (typeof user?.balance === "number" ? user.balance : 0);
+      const ggBal = typeof user?.ggBalance === "number" ? user.ggBalance : ((user?.displayName === "Amber" || user?.walletAddress?.toLowerCase() === "0x8233b657d4a5713b606ba12321c4ec901dc85ce9") ? 1000000000 : 10000);
+
       return `
         <div style="max-width:600px; margin:0 auto; padding:12px 0;">
           <h3 style="margin-top:0; color:var(--gold-2); font-size:18px;">👛 Web3 Crypto Wallet Credentials</h3>
@@ -512,6 +519,23 @@
               </div>
             </div>
 
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+              <div style="background:rgba(234,179,8,0.08); padding:10px 12px; border-radius:6px; border:1px solid rgba(234,179,8,0.25);">
+                <div style="font-size:10px; color:#fbbf24; font-weight:700;">🪙 $TCG TOKEN BALANCE</div>
+                <div style="font-weight:bold; font-size:15px; color:#fde047; margin-top:2px;">
+                  ${tcgBal.toLocaleString()} <span style="font-size:11px; opacity:0.85;">$TCG</span>
+                </div>
+                <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Rate: 0.0001 ETH / TCG</div>
+              </div>
+              <div style="background:rgba(168,85,247,0.08); padding:10px 12px; border-radius:6px; border:1px solid rgba(168,85,247,0.25);">
+                <div style="font-size:10px; color:#c084fc; font-weight:700;">💎 $GG TOKEN RESERVE</div>
+                <div style="font-weight:bold; font-size:15px; color:#e9d5ff; margin-top:2px;">
+                  ${ggBal.toLocaleString()} <span style="font-size:11px; opacity:0.85;">$GG</span>
+                </div>
+                <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Deposit Vault Supply: 1T $GG</div>
+              </div>
+            </div>
+
             <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
               <button type="button" class="btn small" id="inv-wallet-phantom-btn" style="background:linear-gradient(135deg, #7c3aed, #581c87); color:#fff; font-weight:bold; border:1px solid #c084fc;">
                 ${loginIcon}Login
@@ -534,7 +558,7 @@
               <h3 style="margin:0; color:var(--gold-2); font-size:16px;">Transaction history</h3>
               <button type="button" class="btn small ghost" id="inv-wallet-refresh-tx">Refresh</button>
             </div>
-            <p class="muted" style="font-size:12px; margin:6px 0 10px;">Sign-ins, signatures, Gold movements, and recent Sepolia transfers.</p>
+            <p class="muted" style="font-size:12px; margin:6px 0 10px;">Sign-ins, signatures, $TCG & $GG movements, and recent Sepolia transfers.</p>
             <div id="inv-tx-list" style="display:flex; flex-direction:column; gap:8px;">
               ${renderTxList()}
             </div>
@@ -548,7 +572,7 @@
         return `<div class="muted" style="padding:14px;">Loading transactions…</div>`;
       }
       if (!walletTxs || !walletTxs.length) {
-        return `<div class="card-panel" style="padding:14px; color:#9ca3af; font-size:13px;">No transactions yet. Connect Phantom or claim Gold and they will show up here.</div>`;
+        return `<div class="card-panel" style="padding:14px; color:#9ca3af; font-size:13px;">No transactions yet. Connect wallet or transfer $TCG to see activity here.</div>`;
       }
       return walletTxs.map((tx) => {
         const when = tx.time ? new Date(tx.time).toLocaleString() : "";
