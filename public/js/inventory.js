@@ -391,7 +391,7 @@
         <div class="d2-grid" aria-label="Pack">
           ${padD2Grid(cells)}
         </div>
-        ${renderBelt(user, myDecks, equippedDeck, goldBal)}
+        ${renderBelt(user, myDecks, equippedDeck, tcgBal)}
         ${
           stash.length
             ? `<div class="d2-stash-wrap">
