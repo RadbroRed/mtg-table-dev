@@ -17,9 +17,75 @@ try {
   console.warn("[contracts] Could not load addresses.json:", err.message);
 }
 
+let artifacts = {};
+try {
+  const artPath = path.join(__dirname, "artifacts.json");
+  if (fs.existsSync(artPath)) {
+    artifacts = JSON.parse(fs.readFileSync(artPath, "utf8"));
+  }
+} catch (err) {
+  console.warn("[contracts] Could not load artifacts.json:", err.message);
+}
+
 // Minimal & Complete ABI specifications for client and server ethers v6 usage
 const ABIS = {
-  CryptoGameGold: [
+  TCGToken: artifacts.TCGToken ? artifacts.TCGToken.abi : [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function TOTAL_SUPPLY() view returns (uint256)",
+    "function pricePerTokenWei() view returns (uint256)",
+    "function totalSupply() view returns (uint256)",
+    "function balanceOf(address account) view returns (uint256)",
+    "function transfer(address to, uint256 value) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function approve(address spender, uint256 value) returns (bool)",
+    "function transferFrom(address from, address to, uint256 value) returns (bool)",
+    "function buyTokens() payable returns (uint256)",
+    "function depositToSalePool(uint256 amount)",
+    "function withdrawFromSalePool(address to, uint256 amount)",
+    "function withdrawETH(address payable to)",
+    "function setPrice(uint256 newPriceWei)",
+    "event Transfer(address indexed from, address indexed to, uint256 value)",
+    "event Approval(address indexed owner, address indexed spender, uint256 value)",
+    "event TokensPurchased(address indexed buyer, uint256 ethSpent, uint256 tokensReceived)"
+  ],
+
+  GGToken: artifacts.GGToken ? artifacts.GGToken.abi : [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function TOTAL_SUPPLY() view returns (uint256)",
+    "function totalSupply() view returns (uint256)",
+    "function balanceOf(address account) view returns (uint256)",
+    "function transfer(address to, uint256 value) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function approve(address spender, uint256 value) returns (bool)",
+    "function transferFrom(address from, address to, uint256 value) returns (bool)",
+    "event Transfer(address indexed from, address indexed to, uint256 value)",
+    "event Approval(address indexed owner, address indexed spender, uint256 value)"
+  ],
+
+  CryptoGameDepositVault: artifacts.CryptoGameDepositVault ? artifacts.CryptoGameDepositVault.abi : [
+    "function owner() view returns (address)",
+    "function tcgToken() view returns (address)",
+    "function ggToken() view returns (address)",
+    "function userDeposits(address token, address user) view returns (uint256)",
+    "function ethDeposits(address user) view returns (uint256)",
+    "function vaultBalance(address token) view returns (uint256)",
+    "function deposit(address token, uint256 amount)",
+    "function withdraw(address token, uint256 amount)",
+    "function depositETH() payable",
+    "function withdrawETH(uint256 amount)",
+    "function adminWithdraw(address token, uint256 amount, address to)",
+    "function adminWithdrawETH(address payable to, uint256 amount)",
+    "function setTokens(address _tcg, address _gg)",
+    "event Deposited(address indexed user, address indexed token, uint256 amount)",
+    "event Withdrawn(address indexed user, address indexed token, uint256 amount)",
+    "event AdminWithdrawn(address indexed token, address indexed to, uint256 amount)"
+  ],
+
+  CryptoGameGold: artifacts.CryptoGameGold ? artifacts.CryptoGameGold.abi : [
     "function name() view returns (string)",
     "function symbol() view returns (string)",
     "function decimals() view returns (uint8)",
@@ -36,7 +102,7 @@ const ABIS = {
     "event Approval(address indexed owner, address indexed spender, uint256 value)"
   ],
 
-  CryptoGameCards: [
+  CryptoGameCards: artifacts.CryptoGameCards ? artifacts.CryptoGameCards.abi : [
     "function name() view returns (string)",
     "function symbol() view returns (string)",
     "function balanceOf(address account) view returns (uint256)",
@@ -53,7 +119,7 @@ const ABIS = {
     "event CardMinted(uint256 indexed tokenId, address indexed recipient, string cardId, bool isFoil)"
   ],
 
-  CryptoGameWagerEscrow: [
+  CryptoGameWagerEscrow: artifacts.CryptoGameWagerEscrow ? artifacts.CryptoGameWagerEscrow.abi : [
     "function owner() view returns (address)",
     "function daoTreasury() view returns (address)",
     "function referee() view returns (address)",
@@ -69,7 +135,7 @@ const ABIS = {
     "event MatchCancelled(bytes32 indexed matchId, string reason)"
   ],
 
-  CryptoGameDAO: [
+  CryptoGameDAO: artifacts.CryptoGameDAO ? artifacts.CryptoGameDAO.abi : [
     "function name() view returns (string)",
     "function goldToken() view returns (address)",
     "function proposalCount() view returns (uint256)",
@@ -85,7 +151,7 @@ const ABIS = {
 
 /**
  * Returns an ethers Contract instance connected to the specified address/signer.
- * @param {string} name - Contract name (CryptoGameGold, CryptoGameCards, CryptoGameWagerEscrow, CryptoGameDAO)
+ * @param {string} name - Contract name (TCGToken, GGToken, CryptoGameDepositVault, CryptoGameWagerEscrow, ...)
  * @param {string} address - Deployed contract address
  * @param {object} signerOrProvider - ethers.js Signer or Provider instance
  */
@@ -120,6 +186,7 @@ async function signMatchOutcome(matchId, winnerAddress, escrowAddress, refereeSi
 
 module.exports = {
   ABIS,
+  artifacts,
   addresses,
   getContract,
   generateMatchId,

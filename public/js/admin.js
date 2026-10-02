@@ -83,7 +83,8 @@
             <h1>👑 Multiverse Admin & Grand Arbiter</h1>
             <p>Control the multiverse economy, manage user balances, configure the DAO automated wager tax, and oversee live matches.</p>
             <div class="toolbar" style="margin-top:16px">
-              <button type="button" class="btn small gold" id="admin-refresh-btn">🔄 Refresh Dashboard</button>
+              <button type="button" class="btn small gold" onclick="window.MTG.openDeployModal ? window.MTG.openDeployModal() : window.MTG.go('/deploy');">🚀 Web3 Contract Deployer</button>
+              <button type="button" class="btn small ghost" id="admin-refresh-btn">🔄 Refresh Dashboard</button>
               <a class="btn small ghost" onclick="window.MTG.go('/dao'); return false;" href="#">🏛️ View Public DAO Page</a>
               <a class="btn small ghost" onclick="window.MTG.openTablesModal && window.MTG.openTablesModal(); return false;" href="#">🏰 Return to Tables</a>
             </div>

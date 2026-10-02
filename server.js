@@ -4172,6 +4172,81 @@ app.post("/api/dao/fee", (req, res) => {
   res.json({ ok: true, feePercent: fee, message: `Match wager fee updated to ${fee}%! ✨` });
 });
 
+/* ---------- Web3 Smart Contracts & Deployment Endpoints ---------- */
+
+app.get("/api/contracts", (_req, res) => {
+  const addrPath = path.join(__dirname, "contracts", "addresses.json");
+  const artPath = path.join(__dirname, "contracts", "artifacts.json");
+  let addresses = {};
+  let artifacts = {};
+  if (fs.existsSync(addrPath)) {
+    try { addresses = JSON.parse(fs.readFileSync(addrPath, "utf8")); } catch (_) {}
+  }
+  if (fs.existsSync(artPath)) {
+    try { artifacts = JSON.parse(fs.readFileSync(artPath, "utf8")); } catch (_) {}
+  }
+  res.json({
+    ok: true,
+    network: "sepolia",
+    chainId: 11155111,
+    amberWallet: "0x8233B657D4a5713b606Ba12321C4eC901Dc85cE9",
+    addresses: addresses.sepolia || {},
+    allAddresses: addresses,
+    artifacts: {
+      TCGToken: artifacts.TCGToken,
+      GGToken: artifacts.GGToken,
+      CryptoGameDepositVault: artifacts.CryptoGameDepositVault,
+      CryptoGameWagerEscrow: artifacts.CryptoGameWagerEscrow
+    }
+  });
+});
+
+app.post("/api/contracts/update-addresses", (req, res) => {
+  const { network = "sepolia", addresses: newAddrs } = req.body || {};
+  if (!newAddrs || typeof newAddrs !== "object") {
+    return res.status(400).json({ error: "Invalid addresses payload" });
+  }
+  const addrPath = path.join(__dirname, "contracts", "addresses.json");
+  let fileData = {};
+  if (fs.existsSync(addrPath)) {
+    try { fileData = JSON.parse(fs.readFileSync(addrPath, "utf8")); } catch (_) {}
+  }
+  if (!fileData[network]) fileData[network] = { chainId: 11155111 };
+  Object.assign(fileData[network], newAddrs);
+  fs.writeFileSync(addrPath, JSON.stringify(fileData, null, 2), "utf8");
+  res.json({ ok: true, message: "Contract addresses updated successfully!", addresses: fileData[network] });
+});
+
+app.get("/api/contracts/status", async (_req, res) => {
+  const addrPath = path.join(__dirname, "contracts", "addresses.json");
+  let addrs = {};
+  if (fs.existsSync(addrPath)) {
+    try { addrs = JSON.parse(fs.readFileSync(addrPath, "utf8")).sepolia || {}; } catch (_) {}
+  }
+  const rpc = "https://gateway.tenderly.co/public/sepolia";
+  try {
+    const { ethers } = require("ethers");
+    const provider = new ethers.JsonRpcProvider(rpc, 11155111);
+    const amberAddr = addrs.amberWallet || "0x8233B657D4a5713b606Ba12321C4eC901Dc85cE9";
+    const amberEthBalance = await provider.getBalance(amberAddr);
+
+    res.json({
+      ok: true,
+      rpc,
+      amberWallet: amberAddr,
+      amberEthBalance: ethers.formatEther(amberEthBalance),
+      contracts: {
+        TCGToken: addrs.TCGToken || null,
+        GGToken: addrs.GGToken || null,
+        CryptoGameDepositVault: addrs.CryptoGameDepositVault || null,
+        CryptoGameWagerEscrow: addrs.CryptoGameWagerEscrow || null
+      }
+    });
+  } catch (err) {
+    res.json({ ok: false, error: err.message, contracts: addrs });
+  }
+});
+
 /* ---------- Admin Panel Endpoints ---------- */
 
 function checkAdmin(req) {

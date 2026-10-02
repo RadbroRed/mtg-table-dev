@@ -44,6 +44,7 @@
             <p>Every staked wager contributes a <b>${fee}% fee</b> to the community treasury. Wizards govern treasury allocations to fund tournaments, AI deck archetypes, and card art caches!</p>
             <div class="toolbar" style="margin-top:16px">
               <button type="button" class="btn gold" id="dao-new-prop-btn">✨ Propose Initiative</button>
+              <a class="btn ghost" onclick="window.MTG.openDeployModal ? window.MTG.openDeployModal() : window.MTG.go('/deploy'); return false;" href="#/deploy">🚀 Web3 Deployer</a>
               <a class="btn ghost" onclick="window.MTG.openTablesModal && window.MTG.openTablesModal(); return false;" href="#">🏰 Return to Tables</a>
             </div>
           </div>

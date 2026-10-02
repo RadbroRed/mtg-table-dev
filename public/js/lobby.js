@@ -116,6 +116,7 @@
               <span class="chip gold" id="lobby-equipped-deck-chip" style="padding:2px 8px; font-size:11px; cursor:pointer;" title="Click to view/change equipped deck">
                 ${equippedDeck ? `<b>${escapeHtml(equippedDeck.name)}</b> · <span class="faint">${escapeHtml(equippedDeck.format || "duel")}${equippedDeck.counts ? ` (${equippedDeck.counts.main + equippedDeck.counts.command} cards)` : ""}</span>` : `<span class="muted">No deck equipped (Click to select)</span>`}
               </span>
+              <a class="btn small ghost" onclick="window.MTG.openDeployModal ? window.MTG.openDeployModal() : window.MTG.go('/deploy'); return false;" href="#/deploy" style="padding:2px 8px; font-size:11px; margin-left:auto;">🚀 Web3 Deployer</a>
             </div>
           </div>
         </div>
